@@ -1,0 +1,279 @@
+// Notification Service for payment reminders
+// Uses Push API and local notifications
+
+const NOTIFICATION_PERMISSION_KEY = 'inovabank_notifications_enabled';
+
+export interface PaymentReminder {
+  type: 'salary' | 'advance';
+  amount: number;
+  day: number;
+  daysUntil: number;
+}
+
+/**
+ * Check if notifications are supported
+ */
+export function isNotificationSupported(): boolean {
+  return 'Notification' in window;
+}
+
+/**
+ * Request notification permission
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (!isNotificationSupported()) {
+    console.warn('Notifications not supported');
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+  const granted = permission === 'granted';
+  
+  if (granted) {
+    localStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'true');
+  }
+  
+  return granted;
+}
+
+/**
+ * Check if notification permission is granted
+ */
+export function hasNotificationPermission(): boolean {
+  if (!isNotificationSupported()) return false;
+  return Notification.permission === 'granted';
+}
+
+/**
+ * Get current notification permission status
+ */
+export function getNotificationPermissionStatus(): 'granted' | 'denied' | 'default' {
+  if (!isNotificationSupported()) return 'denied';
+  return Notification.permission;
+}
+
+/**
+ * Vibrate the device if supported
+ */
+export function vibrateDevice(pattern: number | number[] = [200, 100, 200]): boolean {
+  if ('vibrate' in navigator) {
+    try {
+      navigator.vibrate(pattern);
+      return true;
+    } catch (err) {
+      console.warn('Vibration failed:', err);
+      return false;
+    }
+  }
+  return false;
+}
+
+// Audio context for notification sounds
+let notificationAudioContext: AudioContext | null = null;
+
+/**
+ * Play notification sound using Web Audio API
+ */
+export function playNotificationSound(): void {
+  try {
+    // Create or resume audio context
+    if (!notificationAudioContext) {
+      notificationAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    if (notificationAudioContext.state === 'suspended') {
+      notificationAudioContext.resume();
+    }
+
+    const ctx = notificationAudioContext;
+    const now = ctx.currentTime;
+
+    // Create a pleasant notification melody
+    const playTone = (frequency: number, startTime: number, duration: number, volume: number = 0.3) => {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      // Envelope for smooth sound
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    };
+
+    // Play a pleasant 3-tone notification chime
+    playTone(880, now, 0.15, 0.25);        // A5
+    playTone(1108.73, now + 0.12, 0.15, 0.25);  // C#6
+    playTone(1318.51, now + 0.24, 0.25, 0.3);   // E6
+
+  } catch (err) {
+    console.warn('Could not play notification sound:', err);
+  }
+}
+
+/**
+ * Send a local notification with optional vibration and sound
+ * Works even when the app is in background using Service Worker when available
+ */
+export async function sendNotification(
+  title: string, 
+  body?: string,
+  tag?: string,
+  vibrate: boolean = true,
+  playSound: boolean = true
+): Promise<Notification | null> {
+  if (!hasNotificationPermission()) {
+    console.warn('Notification permission not granted');
+    return null;
+  }
+
+  try {
+    // Play notification sound first (only works in foreground)
+    if (playSound && document.visibilityState === 'visible') {
+      playNotificationSound();
+    }
+
+    // Vibrate device when notification is sent
+    if (vibrate) {
+      vibrateDevice([200, 100, 200, 100, 300]);
+    }
+
+    // Try Service Worker notification for background support
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const registration = await navigator.serviceWorker.ready;
+      // Use type assertion for extended notification options
+      const options: NotificationOptions & { vibrate?: number[] } = {
+        body,
+        icon: '/apple-touch-icon.png',
+        badge: '/apple-touch-icon.png',
+        tag: tag || 'default',
+        requireInteraction: true,
+        silent: !playSound,
+      };
+      
+      // Add vibrate pattern if supported (mobile only)
+      if (vibrate && 'vibrate' in navigator) {
+        (options as any).vibrate = [200, 100, 200, 100, 300];
+      }
+      
+      await registration.showNotification(title, options);
+      console.log('Notification sent via Service Worker');
+      return null; // SW notification doesn't return Notification object
+    }
+
+    // Fallback to regular Notification API
+    const notification = new Notification(title, {
+      body,
+      icon: '/apple-touch-icon.png',
+      badge: '/apple-touch-icon.png',
+      tag,
+      requireInteraction: true,
+      silent: true, // We handle sound ourselves
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+
+    console.log('Notification sent via Notification API');
+    return notification;
+  } catch (err) {
+    console.error('Error sending notification:', err);
+    return null;
+  }
+}
+
+/**
+ * Send a test notification
+ */
+export async function sendTestNotification(): Promise<Notification | null> {
+  return await sendNotification(
+    '🔔 Teste de Notificação',
+    'As notificações estão funcionando corretamente!',
+    'test-notification',
+    true,
+    true
+  );
+}
+
+/**
+ * Send payment reminder notification
+ */
+export async function sendPaymentReminder(reminder: PaymentReminder): Promise<Notification | null> {
+  const typeLabel = reminder.type === 'salary' ? 'Salário' : 'Adiantamento';
+  const formattedAmount = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(reminder.amount);
+
+  return await sendNotification(
+    `💰 ${typeLabel} em ${reminder.daysUntil} dia${reminder.daysUntil > 1 ? 's' : ''}!`,
+    `Seu ${typeLabel.toLowerCase()} de ${formattedAmount} será creditado no dia ${reminder.day}.`,
+    `payment-reminder-${reminder.type}`
+  );
+}
+
+/**
+ * Check and send reminders for tomorrow's payments
+ */
+export function checkAndSendPaymentReminders(
+  salaryDay: number | null,
+  salaryAmount: number,
+  advanceDay: number | null,
+  advanceAmount: number
+): void {
+  const today = new Date();
+  const currentDay = today.getDate();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+  // Calculate tomorrow's day (handling month rollover)
+  const tomorrowDay = currentDay >= daysInMonth ? 1 : currentDay + 1;
+
+  // Check if salary is tomorrow
+  if (salaryDay && salaryAmount > 0 && salaryDay === tomorrowDay) {
+    sendPaymentReminder({
+      type: 'salary',
+      amount: salaryAmount,
+      day: salaryDay,
+      daysUntil: 1
+    });
+  }
+
+  // Check if advance is tomorrow
+  if (advanceDay && advanceAmount > 0 && advanceDay === tomorrowDay) {
+    sendPaymentReminder({
+      type: 'advance',
+      amount: advanceAmount,
+      day: advanceDay,
+      daysUntil: 1
+    });
+  }
+}
+
+/**
+ * Store last check timestamp to avoid duplicate notifications
+ */
+const LAST_CHECK_KEY = 'inovabank_last_notification_check';
+
+export function shouldCheckReminders(): boolean {
+  const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+  if (!lastCheck) return true;
+
+  const lastCheckDate = new Date(lastCheck);
+  const today = new Date();
+
+  // Check once per day
+  return lastCheckDate.toDateString() !== today.toDateString();
+}
+
+export function markReminderChecked(): void {
+  localStorage.setItem(LAST_CHECK_KEY, new Date().toISOString());
+}

@@ -1,0 +1,19 @@
+services:
+  inovafinance:
+    build: .
+    container_name: inovafinance
+    restart: unless-stopped
+    networks:
+      - traefik
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.inovafinance.rule=Host(`inovabank.inovapro.cloud`)"
+      - "traefik.http.routers.inovafinance.entrypoints=websecure"
+      - "traefik.http.routers.inovafinance.tls.certresolver=letsencrypt"
+      - "traefik.http.services.inovafinance.loadbalancer.server.port=3000"
+
+networks:
+  traefik:
+    external: true
