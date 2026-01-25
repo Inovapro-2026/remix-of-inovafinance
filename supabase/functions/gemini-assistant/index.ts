@@ -153,12 +153,9 @@ Deno.serve(async (req) => {
 
   try {
     const { message, context } = await req.json() as { message: string; context: FinancialContext };
-
-    console.log('Received message:', message);
     
     // Detect intent using improved logic
     const intentResult = detectIntent(message);
-    console.log('Intent detected:', JSON.stringify(intentResult));
 
     const formatBRL = (value: number) =>
       value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

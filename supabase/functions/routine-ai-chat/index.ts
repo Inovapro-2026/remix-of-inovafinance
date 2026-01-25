@@ -51,9 +51,6 @@ Deno.serve(async (req) => {
       userMatricula?: number;
     };
 
-    console.log('INOVAPRO AI - Received message:', message);
-    console.log('User matricula:', userMatricula);
-
     const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY');
     const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
