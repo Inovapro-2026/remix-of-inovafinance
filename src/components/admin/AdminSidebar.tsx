@@ -23,7 +23,8 @@ import {
   Wallet,
   CreditCard,
   UserPlus,
-  Smartphone
+  Smartphone,
+  Radio
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -45,6 +46,7 @@ const menuItems = [
   { id: 'clients', label: 'Clientes', icon: Users },
   { id: 'financial', label: 'Financeiro', icon: DollarSign },
   { id: 'support', label: 'Suporte', icon: MessageCircle },
+  { id: 'live-chat', label: 'Chat ao Vivo', icon: Radio },
   { id: 'whatsapp', label: 'WhatsApp', icon: Smartphone },
   { id: 'announcements', label: 'Avisos', icon: Bell },
   { id: 'planning', label: 'Planejamento', icon: CalendarDays },

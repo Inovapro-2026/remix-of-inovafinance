@@ -35,6 +35,7 @@ import { AdminCommissionsPanel } from "@/components/admin/AdminCommissionsPanel"
 import { AdminWithdrawalsPanel } from "@/components/admin/AdminWithdrawalsPanel";
 import { AdminSubscriptionsPanel } from "@/components/admin/AdminSubscriptionsPanel";
 import { AdminWhatsApp } from "@/components/admin/AdminWhatsApp";
+import { AdminLiveChat } from "@/components/admin/AdminLiveChat";
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -158,6 +159,8 @@ export default function Admin() {
         return <AdminPlanning />;
       case 'whatsapp':
         return <AdminWhatsApp />;
+      case 'live-chat':
+        return <AdminLiveChat />;
       case 'settings':
         return <AdminSettings />;
       default:
