@@ -25,46 +25,78 @@ type Step = 'matricula' | 'register' | 'success' | 'pending' | 'rejected';
 // Componente de fundo memoizado para evitar re-renderizações caras
 const AnimatedBackground = memo(({ introPhase }: { introPhase: string }) => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {/* Floating gradient orbs - otimizados */}
-    <motion.div
-      className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-primary/15 rounded-full blur-[60px]"
-      animate={{
-        scale: [1, 1.05, 1],
-        opacity: [0.15, 0.2, 0.15]
+    {/* Grid pattern overlay */}
+    <div 
+      className="absolute inset-0 opacity-[0.03]"
+      style={{
+        backgroundImage: `linear-gradient(rgba(var(--primary-rgb), 0.3) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(var(--primary-rgb), 0.3) 1px, transparent 1px)`,
+        backgroundSize: '50px 50px'
       }}
-      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+    />
+    
+    {/* Animated glow orbs - tech style */}
+    <motion.div
+      className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-radial from-primary/20 via-primary/5 to-transparent rounded-full blur-[80px]"
+      animate={{
+        scale: [1, 1.1, 1],
+        opacity: [0.2, 0.3, 0.2]
+      }}
+      transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
     />
     <motion.div
-      className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-secondary/15 rounded-full blur-[50px]"
+      className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-radial from-emerald-500/15 via-emerald-500/5 to-transparent rounded-full blur-[60px]"
       animate={{
-        scale: [1, 1.08, 1],
-        opacity: [0.15, 0.18, 0.15]
+        scale: [1, 1.15, 1],
+        opacity: [0.15, 0.25, 0.15]
       }}
-      transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+    />
+    <motion.div
+      className="absolute top-0 left-0 w-[300px] h-[300px] bg-gradient-radial from-blue-500/10 via-transparent to-transparent rounded-full blur-[40px]"
+      animate={{
+        scale: [1, 1.2, 1],
+        opacity: [0.1, 0.2, 0.1]
+      }}
+      transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 4 }}
     />
 
-    {/* Floating coins animation - apenas após a intro */}
-    {introPhase === 'content' && [...Array(3)].map((_, i) => (
+    {/* Floating particles - tech effect */}
+    {introPhase === 'content' && [...Array(6)].map((_, i) => (
       <motion.div
-        key={`coin-${i}`}
-        className="absolute w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 shadow-md"
+        key={`particle-${i}`}
+        className="absolute w-1 h-1 bg-primary/60 rounded-full"
         style={{
-          left: `${20 + i * 30}%`,
-          bottom: '-25px',
+          left: `${15 + i * 15}%`,
+          top: `${20 + (i % 3) * 25}%`,
         }}
-        initial={{ opacity: 0 }}
         animate={{
-          y: [0, -120, -80],
-          opacity: [0, 0.8, 0],
+          y: [0, -30, 0],
+          x: [0, i % 2 === 0 ? 10 : -10, 0],
+          opacity: [0.3, 0.8, 0.3],
+          scale: [1, 1.5, 1]
         }}
         transition={{
-          duration: 4,
+          duration: 3 + i * 0.5,
           repeat: Infinity,
-          delay: i * 1.3,
-          ease: "easeOut"
+          delay: i * 0.4,
+          ease: "easeInOut"
         }}
       />
     ))}
+    
+    {/* Scan line effect */}
+    <motion.div
+      className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+      animate={{
+        top: ['0%', '100%']
+      }}
+      transition={{
+        duration: 8,
+        repeat: Infinity,
+        ease: "linear"
+      }}
+    />
   </div>
 ));
 
@@ -481,74 +513,86 @@ export default function Login() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Animated Piggy Bank Logo - Otimizado */}
+            {/* Tech-style Logo */}
             <motion.div
               initial={{ opacity: 0, y: -15 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center mb-6"
+              className="text-center mb-8"
             >
-              <div className="flex flex-col items-center justify-center gap-3 mb-3">
+              <div className="flex flex-col items-center justify-center gap-4">
                 <motion.div
                   className="relative"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 15, delay: 0.1 }}
                 >
-                  {/* Glow effect simplificado */}
-                  <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-lg" />
-
-                  {/* Main piggy container */}
-                  <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center shadow-lg overflow-hidden">
-                    {/* Piggy face simplificado */}
-                    <svg viewBox="0 0 64 64" className="w-14 h-14 relative z-10">
-                      <circle cx="32" cy="32" r="22" fill="#fb7185" />
-                      <ellipse cx="32" cy="40" rx="10" ry="7" fill="#fda4af" />
-                      <circle cx="28" cy="40" r="2" fill="#be185d" />
-                      <circle cx="36" cy="40" r="2" fill="#be185d" />
-                      <circle cx="24" cy="28" r="4" fill="white" />
-                      <circle cx="40" cy="28" r="4" fill="white" />
-                    </svg>
-
-                    {/* Coin falling simplificado - apenas 1 por vez */}
+                  {/* Outer glow ring */}
+                  <motion.div 
+                    className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-primary via-emerald-500 to-primary opacity-20 blur-xl"
+                    animate={{ 
+                      opacity: [0.2, 0.4, 0.2],
+                      scale: [1, 1.05, 1]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  />
+                  
+                  {/* Tech hexagon container */}
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    {/* Rotating border */}
                     <motion.div
-                      className="absolute w-3 h-3 rounded-full bg-yellow-400 shadow-sm"
-                      initial={{ y: -30, opacity: 0 }}
-                      animate={{
-                        y: [-30, 10, 30],
-                        opacity: [1, 1, 0]
+                      className="absolute inset-0 rounded-2xl border-2 border-primary/50"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                      style={{
+                        background: 'linear-gradient(135deg, hsl(var(--primary)/0.1), hsl(var(--primary)/0.05))'
                       }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeIn"
-                      }}
-                      style={{ top: '5px' }}
                     />
+                    
+                    {/* Inner icon */}
+                    <div className="relative z-10 w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30">
+                      <Wallet className="w-8 h-8 text-primary-foreground" />
+                    </div>
+                    
+                    {/* Corner accents */}
+                    <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary rounded-tl-lg" />
+                    <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary rounded-tr-lg" />
+                    <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary rounded-bl-lg" />
+                    <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary rounded-br-lg" />
                   </div>
                 </motion.div>
 
-                {/* Bank name - removido animate-gradient para performance */}
-                <motion.h1
-                  className="font-display text-3xl font-bold text-foreground"
+                {/* Bank name with tech styling */}
+                <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
+                  className="relative"
                 >
-                  INOVAFINANCE
-                </motion.h1>
+                  <h1 className="font-display text-3xl md:text-4xl font-bold tracking-wider bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent">
+                    INOVAFINANCE
+                  </h1>
+                  <motion.div 
+                    className="h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent mt-2"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                  />
+                </motion.div>
               </div>
 
               <motion.p
-                className="text-muted-foreground text-xs md:text-sm"
+                className="text-muted-foreground text-sm mt-4 flex items-center justify-center gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
               >
+                <Sparkles className="w-4 h-4 text-primary" />
                 Seu assistente financeiro inteligente
+                <Sparkles className="w-4 h-4 text-primary" />
               </motion.p>
             </motion.div>
 
-            {/* Login Form - Transições mais rápidas */}
+            {/* Login Form - Tech style */}
             <AnimatePresence mode="wait">
               {step === 'matricula' && (
                 <motion.div
@@ -559,116 +603,146 @@ export default function Login() {
                   transition={{ duration: 0.2 }}
                   className="w-full max-w-sm"
                 >
-                  <GlassCard className="p-6">
-                    <h2 className="text-xl font-semibold text-center mb-2">
-                      Digite sua matrícula
-                    </h2>
-                    <p className="text-muted-foreground text-sm text-center mb-6">
-                      Use seu ID de 6 dígitos para acessar
-                    </p>
+                  <div className="relative">
+                    {/* Tech border effect */}
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-primary/50 via-emerald-500/50 to-primary/50 rounded-2xl opacity-50" />
+                    
+                    <GlassCard className="relative p-6 backdrop-blur-xl bg-card/90 border-0">
+                      {/* Header with icon */}
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Shield className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-semibold">
+                          Acesso Seguro
+                        </h2>
+                      </div>
+                      <p className="text-muted-foreground text-sm text-center mb-6">
+                        Digite sua matrícula de 6 dígitos
+                      </p>
 
-                    {/* PIN Display (tap para abrir o teclado do celular) */}
-                    <div
-                      className="relative flex justify-center gap-2 mb-6"
-                      onClick={() => matriculaInputRef.current?.focus()}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') matriculaInputRef.current?.focus();
-                      }}
-                    >
-                      {/* Input invisível para ativar o teclado numérico no mobile */}
-                      <input
-                        ref={matriculaInputRef}
-                        value={matricula}
-                        onChange={(e) => {
-                          const onlyNumbers = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          setMatricula(onlyNumbers);
+                      {/* PIN Display with tech styling */}
+                      <div
+                        className="relative flex justify-center gap-2 mb-6"
+                        onClick={() => matriculaInputRef.current?.focus()}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') matriculaInputRef.current?.focus();
                         }}
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        autoComplete="one-time-code"
-                        aria-label="Matrícula"
-                        className="absolute inset-0 opacity-0"
+                      >
+                        {/* Input invisível para ativar o teclado numérico no mobile */}
+                        <input
+                          ref={matriculaInputRef}
+                          value={matricula}
+                          onChange={(e) => {
+                            const onlyNumbers = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            setMatricula(onlyNumbers);
+                          }}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          autoComplete="one-time-code"
+                          aria-label="Matrícula"
+                          className="absolute inset-0 opacity-0"
+                        />
+
+                        {[...Array(6)].map((_, i) => (
+                          <motion.div
+                            key={i}
+                            className={`relative w-11 h-14 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 ${
+                              matricula[i]
+                                ? 'bg-primary/20 border-2 border-primary shadow-lg shadow-primary/20'
+                                : 'bg-muted/30 border-2 border-border/50'
+                            }`}
+                            animate={matricula[i] ? { scale: [1, 1.08, 1] } : {}}
+                            transition={{ duration: 0.15 }}
+                          >
+                            {matricula[i] && (
+                              <motion.span
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className="text-primary font-mono"
+                              >
+                                {matricula[i]}
+                              </motion.span>
+                            )}
+                            {!matricula[i] && i === matricula.length && (
+                              <motion.div
+                                className="w-0.5 h-6 bg-primary"
+                                animate={{ opacity: [0, 1, 0] }}
+                                transition={{ duration: 1, repeat: Infinity }}
+                              />
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      <NumericKeypad
+                        value={matricula}
+                        onChange={setMatricula}
+                        onSubmit={handleMatriculaSubmit}
+                        maxLength={6}
+                        autoSubmit={true}
                       />
 
-                      {[...Array(6)].map((_, i) => (
-                        <motion.div
-                          key={i}
-                          className={`w-10 h-12 rounded-lg border-2 flex items-center justify-center text-xl font-bold transition-colors ${matricula[i]
-                            ? 'border-primary bg-primary/20'
-                            : 'border-border bg-muted/30'
-                            }`}
-                          animate={matricula[i] ? { scale: [1, 1.1, 1] } : {}}
-                          transition={{ duration: 0.2 }}
+                      {error && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-destructive text-sm text-center mt-4 flex items-center justify-center gap-2"
                         >
-                          {matricula[i] || ''}
-                        </motion.div>
-                      ))}
-                    </div>
+                          <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                          {error}
+                        </motion.p>
+                      )}
 
-                    <NumericKeypad
-                      value={matricula}
-                      onChange={setMatricula}
-                      onSubmit={handleMatriculaSubmit}
-                      maxLength={6}
-                      autoSubmit={true}
-                    />
+                      {isLoading && (
+                        <div className="flex justify-center mt-4">
+                          <motion.div 
+                            className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          />
+                        </div>
+                      )}
 
-                    {error && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-destructive text-sm text-center mt-4"
-                      >
-                        {error}
-                      </motion.p>
-                    )}
+                      {/* Biometric Login Button */}
+                      {biometricAvailable && biometricEnabled && (
+                        <div className="mt-4">
+                          <button
+                            onClick={handleBiometricLogin}
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
+                          >
+                            <Fingerprint className="w-5 h-5" />
+                            Entrar com biometria
+                          </button>
+                          <p className="text-xs text-muted-foreground text-center mt-2">
+                            Use sua digital ou Face ID
+                          </p>
+                        </div>
+                      )}
 
-                    {isLoading && (
-                      <div className="flex justify-center mt-4">
-                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-
-                    {/* Biometric Login Button */}
-                    {biometricAvailable && biometricEnabled && (
-                      <div className="mt-4">
+                      {/* Action buttons with tech style */}
+                      <div className="mt-6 pt-4 border-t border-border/50 space-y-3">
                         <button
-                          onClick={handleBiometricLogin}
-                          disabled={isLoading}
-                          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-primary hover:opacity-90 transition-opacity text-white font-medium glow-primary"
+                          onClick={() => navigate('/subscribe')}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
                         >
-                          <Fingerprint className="w-5 h-5" />
-                          Entrar com biometria
+                          <CreditCard className="w-5 h-5" />
+                          Assine agora
                         </button>
-                        <p className="text-xs text-muted-foreground text-center mt-2">
-                          Use sua digital ou Face ID
-                        </p>
+                        <button
+                          onClick={() => navigate('/subscribe?trial=true')}
+                          className="group w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500 transition-all text-emerald-400 font-medium"
+                        >
+                          <Calendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                          Teste grátis por 7 dias
+                        </button>
                       </div>
-                    )}
-
-                    {/* Botão de Assinatura */}
-                    <div className="mt-6 pt-4 border-t border-border space-y-3">
-                      <button
-                        onClick={() => navigate('/subscribe')}
-                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-primary hover:opacity-90 transition-opacity text-white font-medium glow-primary"
-                      >
-                        <CreditCard className="w-5 h-5" />
-                        Assine agora
-                      </button>
-                      <button
-                        onClick={() => navigate('/subscribe?trial=true')}
-                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors text-emerald-400 font-medium"
-                      >
-                        <Calendar className="w-5 h-5" />
-                        Teste grátis
-                      </button>
-                    </div>
-                    
-                    {/* Botão Instalar App */}
-                    <InstallAppButton />
-                  </GlassCard>
+                      
+                      {/* Install App Button */}
+                      <InstallAppButton />
+                    </GlassCard>
+                  </div>
                 </motion.div>
               )}
 

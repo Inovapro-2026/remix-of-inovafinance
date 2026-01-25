@@ -65,34 +65,49 @@ export function markLoginAudioPlayed(): void {
 }
 
 /**
- * Check if a specific tab was already greeted this session
+ * Check if a specific tab was already greeted TODAY (not just this session)
+ * Voice should only speak once per tab per day
  */
 export function wasTabGreetedSession(tabName: string): boolean {
-  const greeted = sessionStorage.getItem(TAB_GREETED_SESSION_KEY);
+  const greeted = localStorage.getItem(TAB_GREETED_SESSION_KEY);
   if (!greeted) return false;
   try {
-    const tabs = JSON.parse(greeted) as string[];
-    return tabs.includes(tabName);
+    const data = JSON.parse(greeted) as { date: string; tabs: string[] };
+    const today = new Date().toDateString();
+    // If it's a new day, reset
+    if (data.date !== today) {
+      return false;
+    }
+    return data.tabs.includes(tabName);
   } catch {
     return false;
   }
 }
 
 /**
- * Mark a tab as greeted for this session
+ * Mark a tab as greeted for TODAY (persists until next day)
  */
 export function markTabGreetedSession(tabName: string): void {
-  const greeted = sessionStorage.getItem(TAB_GREETED_SESSION_KEY);
-  let tabs: string[] = [];
+  const today = new Date().toDateString();
+  const greeted = localStorage.getItem(TAB_GREETED_SESSION_KEY);
+  let data: { date: string; tabs: string[] } = { date: today, tabs: [] };
+  
   try {
-    tabs = greeted ? JSON.parse(greeted) : [];
+    if (greeted) {
+      const parsed = JSON.parse(greeted) as { date: string; tabs: string[] };
+      // If same day, use existing tabs; otherwise reset
+      if (parsed.date === today) {
+        data = parsed;
+      }
+    }
   } catch {
-    tabs = [];
+    data = { date: today, tabs: [] };
   }
-  if (!tabs.includes(tabName)) {
-    tabs.push(tabName);
-    sessionStorage.setItem(TAB_GREETED_SESSION_KEY, JSON.stringify(tabs));
-    console.log(`[VoiceQueue] Tab ${tabName} marked as greeted`);
+  
+  if (!data.tabs.includes(tabName)) {
+    data.tabs.push(tabName);
+    localStorage.setItem(TAB_GREETED_SESSION_KEY, JSON.stringify(data));
+    console.log(`[VoiceQueue] Tab ${tabName} marked as greeted for today`);
   }
 }
 
@@ -100,7 +115,7 @@ export function markTabGreetedSession(tabName: string): void {
  * Clear all tab greetings (used when voice is re-enabled)
  */
 export function clearTabGreetings(): void {
-  sessionStorage.removeItem(TAB_GREETED_SESSION_KEY);
+  localStorage.removeItem(TAB_GREETED_SESSION_KEY);
   console.log('[VoiceQueue] Tab greetings cleared');
 }
 
