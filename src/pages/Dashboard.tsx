@@ -33,16 +33,9 @@ import { EditValueModal } from '@/components/EditValueModal';
 import { toast } from 'sonner';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { RenewalModal, BlockedModal } from '@/components/SubscriptionModals';
+import { SupportChatPopout } from '@/components/SupportChatPopout';
 
 const CHART_COLORS = ['#7A5CFA', '#4A90FF', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6'];
-
-const WHATSAPP_NUMBER = '5511978197645';
-const WHATSAPP_MESSAGE = 'Olá! Preciso de ajuda com o INOVAFINANCE';
-
-const openWhatsAppSupport = () => {
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
-  window.open(url, '_blank');
-};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -301,17 +294,8 @@ export default function Dashboard() {
       {/* Mode Toggle */}
       <ModeToggle />
 
-      {/* Floating WhatsApp Support Button - Only on Home */}
-      {isHomePage && (
-        <motion.button
-          onClick={openWhatsAppSupport}
-          whileTap={{ scale: 0.95 }}
-          className="fixed bottom-24 right-4 w-12 h-12 rounded-full bg-[#25D366] shadow-lg flex items-center justify-center z-50"
-          aria-label="Suporte WhatsApp"
-        >
-          <MessageCircle className="w-6 h-6 text-white" />
-        </motion.button>
-      )}
+      {/* Floating AI Support Chat Button - Only on Home */}
+      {isHomePage && <SupportChatPopout />}
 
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-6 flex items-center justify-between">

@@ -437,6 +437,77 @@ export type Database = {
         }
         Relationships: []
       }
+      live_chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_ai: boolean | null
+          message: string
+          sender_id: string | null
+          sender_type: string
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_ai?: boolean | null
+          message: string
+          sender_id?: string | null
+          sender_type?: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_ai?: boolean | null
+          message?: string
+          sender_id?: string | null
+          sender_type?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "live_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_chat_sessions: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          ended_at: string | null
+          id: string
+          status: string
+          updated_at: string
+          user_matricula: number
+          user_name: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+          user_matricula: number
+          user_name?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+          user_matricula?: number
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       payment_logs: {
         Row: {
           amount: number
