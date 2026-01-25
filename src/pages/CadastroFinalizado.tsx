@@ -1,18 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Copy, Check, Clock, AlertTriangle, Key, ArrowRight } from 'lucide-react';
+import { CheckCircle, Copy, Check, Clock, AlertTriangle, Key, ArrowRight, Download, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InstallAppButton } from '@/components/InstallAppButton';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 const CadastroFinalizado = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const { isInstallable, isInstalled, installApp } = usePwaInstall();
   
   const matricula = searchParams.get('matricula') || '';
   const formattedMatricula = `IFN-${matricula}`;
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const handleInstallApp = async () => {
+    const success = await installApp();
+    if (success) {
+      toast.success('App instalado com sucesso!');
+    }
+  };
 
   useEffect(() => {
     // If no matricula in URL, redirect to login
@@ -94,12 +104,12 @@ const CadastroFinalizado = () => {
             </p>
           </motion.div>
 
-          {/* Copy Button */}
+          {/* Copy Button and Install Button */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="mb-6"
+            className="mb-6 space-y-3"
           >
             <Button
               onClick={handleCopyAndRedirect}
@@ -118,6 +128,34 @@ const CadastroFinalizado = () => {
                 </>
               )}
             </Button>
+            
+            {/* Install App Button */}
+            {(!isInstalled && (isInstallable || isIOS)) && (
+              <Button
+                onClick={handleInstallApp}
+                variant="outline"
+                className="w-full h-14 text-lg gap-3 border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400"
+              >
+                {isIOS ? (
+                  <>
+                    <Smartphone className="w-5 h-5" />
+                    Adicionar à Tela de Início
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    Instalar App
+                  </>
+                )}
+              </Button>
+            )}
+            
+            {isInstalled && (
+              <div className="flex items-center justify-center gap-2 py-3 text-emerald-400 text-sm">
+                <CheckCircle className="w-5 h-5" />
+                <span>App instalado</span>
+              </div>
+            )}
           </motion.div>
 
           {/* Trial Info */}
