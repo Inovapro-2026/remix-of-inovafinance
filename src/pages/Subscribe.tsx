@@ -1044,6 +1044,8 @@ export default function Subscribe() {
       // Get auth user ID if OTP was verified
       const { data: { user: authUser } } = await supabase.auth.getUser();
 
+      const initialBalanceValue = parseCurrency(currentDebitBalance);
+      
       const { error: insertError } = await supabase
         .from('users_matricula')
         .insert({
@@ -1052,7 +1054,10 @@ export default function Subscribe() {
           email: email.trim() || null,
           phone: phone.trim(),
           cpf: cpf.replace(/\D/g, ''),
-          initial_balance: parseCurrency(currentDebitBalance),
+          initial_balance: initialBalanceValue,
+          saldo_atual: initialBalanceValue, // Initialize saldo_atual with initial_balance
+          ganho_total: 0,
+          gasto_total: 0,
           credit_used: parseCurrency(currentCreditBalance),
           has_credit_card: hasCreditCard,
           credit_limit: hasCreditCard ? parseCurrency(creditLimit) : 0,
