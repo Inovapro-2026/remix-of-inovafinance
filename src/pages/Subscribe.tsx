@@ -15,6 +15,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { speakNative, stopNativeSpeaking } from '@/services/nativeTtsService';
+import { cn } from '@/lib/utils';
 
 type Step = 'form' | 'processing' | 'pix' | 'success' | 'error' | 'trial_success';
 type FormStep = 'name' | 'email' | 'otp_verify' | 'phone' | 'cpf' | 'salary' | 'balances' | 'creditCard' | 'affiliate' | 'coupon' | 'pixKey' | 'review';

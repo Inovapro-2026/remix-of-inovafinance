@@ -135,8 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userStatus: 'pending',
           isAffiliate: false,
           affiliateBalance: 0,
-          saldoAtual: initialBalance || 0, // Initialize with initial balance
-          // New onboarding fields
+          saldoAtual: initialBalance || 0,
+          ganhoTotal: 0,
+          gastoTotal: 0,
           onboardingCompleted: false,
           onboardingStep: 0,
           planType: 'none',
