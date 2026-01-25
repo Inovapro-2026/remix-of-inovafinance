@@ -59,9 +59,9 @@ export function AdminLiveChat() {
   useEffect(() => {
     loadSessions();
     
-    // Subscribe to new sessions
-    const channel = supabase
-      .channel('admin_live_chat')
+    // Subscribe to session changes
+    const sessionChannel = supabase
+      .channel('admin_sessions_channel')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_chat_sessions' },
@@ -69,30 +69,43 @@ export function AdminLiveChat() {
           loadSessions();
         }
       )
+      .subscribe();
+
+    // Subscribe to all message changes
+    const messagesChannel = supabase
+      .channel('admin_messages_channel')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'live_chat_messages' },
         (payload) => {
           const newMsg = payload.new as ChatMessage;
+          
           // Notification for new user messages
           if (newMsg.sender_type === 'user') {
             toast({
               title: "Nova mensagem!",
               description: "Um cliente enviou uma mensagem.",
             });
-            // Reload sessions to update unread count
+            // Reload sessions to update
             loadSessions();
           }
+          
           // Update messages if viewing this session
           if (selectedSession && newMsg.session_id === selectedSession.id) {
-            setMessages(prev => [...prev, newMsg]);
+            setMessages(prev => {
+              // Check if message already exists
+              const exists = prev.some(m => m.id === newMsg.id);
+              if (exists) return prev;
+              return [...prev, newMsg];
+            });
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(messagesChannel);
     };
   }, [selectedSession]);
 
@@ -151,27 +164,39 @@ export function AdminLiveChat() {
 
     setIsSending(true);
     try {
-      const { error } = await supabase
+      const messageText = newMessage.trim();
+      setNewMessage('');
+      
+      // Insert message to database
+      const { data: insertedMsg, error } = await supabase
         .from('live_chat_messages')
         .insert({
           session_id: selectedSession.id,
           sender_type: 'admin',
-          message: newMessage.trim(),
+          message: messageText,
           is_ai: false
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      // Update session
+      // Add message locally immediately for instant feedback
+      if (insertedMsg) {
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === insertedMsg.id);
+          if (exists) return prev;
+          return [...prev, insertedMsg];
+        });
+      }
+
+      // Update session timestamp
       await supabase
         .from('live_chat_sessions')
-        .update({ updated_at: new Date().toISOString() })
+        .update({ updated_at: new Date().toISOString(), status: 'active' })
         .eq('id', selectedSession.id);
 
-      setNewMessage('');
-      await loadMessages(selectedSession.id);
     } catch (error) {
-      console.error('Error sending message:', error);
       toast({
         title: "Erro",
         description: "Não foi possível enviar a mensagem",
