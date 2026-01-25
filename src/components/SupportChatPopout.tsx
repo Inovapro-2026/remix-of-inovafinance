@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageCircle, 
@@ -6,13 +6,14 @@ import {
   Send, 
   Loader2, 
   Bot, 
-  User as UserIcon,
   HeadphonesIcon,
-  ArrowLeft
+  ArrowLeft,
+  Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -27,6 +28,8 @@ interface Message {
 
 type ChatMode = 'ai' | 'human' | 'waiting';
 
+const STORAGE_KEY = 'inova_chat_session';
+
 export function SupportChatPopout() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -34,17 +37,25 @@ export function SupportChatPopout() {
   const [isLoading, setIsLoading] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+
+  // Load persisted session on mount
+  useEffect(() => {
+    if (user?.userId) {
+      loadPersistedSession();
+    }
+  }, [user?.userId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Subscribe to live chat messages when in human mode
+  // Subscribe to live chat messages when session exists
   useEffect(() => {
-    if (!sessionId || chatMode !== 'human') return;
+    if (!sessionId) return;
 
     const channel = supabase
       .channel(`live_chat_${sessionId}`)
@@ -59,15 +70,51 @@ export function SupportChatPopout() {
         (payload) => {
           const newMsg = payload.new as any;
           if (newMsg.sender_type === 'admin') {
-            setMessages(prev => [...prev, {
+            const adminMessage: Message = {
               id: newMsg.id,
               role: 'admin',
               content: newMsg.message,
               timestamp: new Date(newMsg.created_at),
               isAI: false
-            }]);
-            // Update mode to human if was waiting
+            };
+            
+            setMessages(prev => [...prev, adminMessage]);
             setChatMode('human');
+            
+            // Show notification if chat is closed
+            if (!isOpen) {
+              setUnreadCount(prev => prev + 1);
+              // Play notification sound
+              try {
+                const audio = new Audio('/notification.mp3');
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+              } catch {}
+              
+              toast.success('Nova mensagem do atendente!', {
+                description: newMsg.message.substring(0, 50) + (newMsg.message.length > 50 ? '...' : ''),
+                action: {
+                  label: 'Abrir',
+                  onClick: () => setIsOpen(true)
+                }
+              });
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'live_chat_sessions',
+          filter: `id=eq.${sessionId}`
+        },
+        (payload) => {
+          const updatedSession = payload.new as any;
+          // If session was closed by admin, reset chat
+          if (updatedSession.status === 'closed') {
+            handleSessionClosed();
           }
         }
       )
@@ -76,11 +123,76 @@ export function SupportChatPopout() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [sessionId, chatMode]);
+  }, [sessionId, isOpen]);
 
-  // Load initial message
+  // Clear unread when opening chat
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
+    if (isOpen) {
+      setUnreadCount(0);
+    }
+  }, [isOpen]);
+
+  const loadPersistedSession = useCallback(async () => {
+    if (!user?.userId) return;
+    
+    try {
+      // Check for active session in database
+      const { data: activeSession } = await supabase
+        .from('live_chat_sessions')
+        .select('*')
+        .eq('user_matricula', user.userId)
+        .in('status', ['waiting', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (activeSession) {
+        setSessionId(activeSession.id);
+        setChatMode(activeSession.status === 'active' ? 'human' : 'waiting');
+        
+        // Load all messages from this session
+        const { data: sessionMessages } = await supabase
+          .from('live_chat_messages')
+          .select('*')
+          .eq('session_id', activeSession.id)
+          .order('created_at', { ascending: true });
+
+        if (sessionMessages && sessionMessages.length > 0) {
+          const loadedMessages: Message[] = sessionMessages.map(msg => ({
+            id: msg.id,
+            role: msg.sender_type === 'admin' ? 'admin' as const : msg.sender_type === 'user' ? 'user' as const : 'assistant' as const,
+            content: msg.message,
+            timestamp: new Date(msg.created_at),
+            isAI: msg.is_ai || false
+          }));
+          
+          // Add welcome message at the start if not present
+          const hasWelcome = loadedMessages.some(m => m.id === 'welcome');
+          if (!hasWelcome) {
+            loadedMessages.unshift({
+              id: 'welcome',
+              role: 'assistant',
+              content: 'Olá! 👋 Sou a INOVA, assistente virtual do INOVAFINANCE. Como posso ajudar você hoje?',
+              timestamp: new Date(activeSession.created_at),
+              isAI: true
+            });
+          }
+          
+          setMessages(loadedMessages);
+          return;
+        }
+      }
+      
+      // No active session, show welcome message
+      setMessages([{
+        id: 'welcome',
+        role: 'assistant',
+        content: 'Olá! 👋 Sou a INOVA, assistente virtual do INOVAFINANCE. Como posso ajudar você hoje?\n\nPosso responder dúvidas sobre:\n• Funcionalidades do app\n• Planos e assinatura\n• Cartão de crédito\n• Rotinas e produtividade\n• Programa de afiliados\n\nSe precisar de atendimento humano, é só clicar no botão abaixo! 💬',
+        timestamp: new Date(),
+        isAI: true
+      }]);
+    } catch {
+      // Show default welcome
       setMessages([{
         id: 'welcome',
         role: 'assistant',
@@ -89,7 +201,20 @@ export function SupportChatPopout() {
         isAI: true
       }]);
     }
-  }, [isOpen]);
+  }, [user?.userId]);
+
+  const handleSessionClosed = () => {
+    setSessionId(null);
+    setChatMode('ai');
+    setMessages(prev => [...prev, {
+      id: `closed-${Date.now()}`,
+      role: 'assistant',
+      content: '✅ Este atendimento foi encerrado pelo atendente.\n\nSe precisar de mais ajuda, estou aqui! Você pode continuar conversando comigo ou solicitar um novo atendimento humano.',
+      timestamp: new Date(),
+      isAI: true
+    }]);
+    toast.info('Atendimento encerrado pelo atendente');
+  };
 
   const sendToAI = async (userMessage: string) => {
     try {
@@ -142,16 +267,17 @@ export function SupportChatPopout() {
       } finally {
         setIsLoading(false);
       }
-    } else if (chatMode === 'human' && sessionId) {
-      // Human mode - send to database
+    } else if ((chatMode === 'human' || chatMode === 'waiting') && sessionId) {
+      // Human/Waiting mode - send to database
       try {
         await supabase.from('live_chat_messages').insert({
           session_id: sessionId,
           sender_type: 'user',
           sender_id: user?.id || null,
-          message: userMessage
+          message: userMessage,
+          is_ai: false
         });
-      } catch (error) {
+      } catch {
         toast.error('Erro ao enviar mensagem');
       }
     }
@@ -229,8 +355,20 @@ export function SupportChatPopout() {
       >
         <MessageCircle className="w-6 h-6 text-white" />
         
-        {/* Pulse effect */}
-        <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
+        {/* Unread badge */}
+        {unreadCount > 0 && (
+          <Badge 
+            variant="destructive" 
+            className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-[10px] animate-bounce"
+          >
+            {unreadCount}
+          </Badge>
+        )}
+        
+        {/* Pulse effect when has unread */}
+        {unreadCount > 0 && (
+          <span className="absolute inset-0 rounded-full bg-destructive/40 animate-ping" />
+        )}
       </motion.button>
 
       {/* Chat Popout */}
