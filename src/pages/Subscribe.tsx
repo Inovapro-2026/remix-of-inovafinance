@@ -5,9 +5,10 @@ import {
   CreditCard, Sparkles, ArrowRight, User, Phone, Mail, FileText,
   Wallet, Calendar, ChevronLeft, Loader2, CheckCircle2, AlertCircle,
   Copy, Check, QrCode, Clock, Tag, Users, ArrowLeft, MessageCircle,
-  KeyRound, ShieldCheck
+  KeyRound, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PaymentMethodSelector, PaymentMethod } from '@/components/PaymentMethodSelector';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -17,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { speakNative, stopNativeSpeaking } from '@/services/nativeTtsService';
 import { cn } from '@/lib/utils';
 
-type Step = 'form' | 'processing' | 'pix' | 'success' | 'error' | 'trial_success';
+type Step = 'form' | 'processing' | 'pix' | 'checkout' | 'success' | 'error' | 'trial_success';
 type FormStep = 'name' | 'email' | 'otp_verify' | 'phone' | 'cpf' | 'salary' | 'balances' | 'creditCard' | 'affiliate' | 'coupon' | 'pixKey' | 'review';
 
 interface PixData {
@@ -119,6 +120,8 @@ export default function Subscribe() {
   const [basePrice, setBasePrice] = useState(29.90);
   const [affiliatePrice, setAffiliatePrice] = useState(49.90);
   const [subscriptionAmount, setSubscriptionAmount] = useState(29.90);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [userTempId, setUserTempId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
@@ -1115,7 +1118,7 @@ export default function Subscribe() {
     setIsLoading(false);
   };
 
-  // Handle PAID subscription (with PIX payment)
+  // Handle PAID subscription (with checkout - PIX, Credit, Debit)
   const handleSubmit = async () => {
     if (!fullName.trim()) {
       setError('Nome completo é obrigatório');
@@ -1133,10 +1136,16 @@ export default function Subscribe() {
     setError('');
     setIsLoading(true);
     setStep('processing');
-    speakNative('Gerando seu código PIX. Aguarde um momento.');
+    
+    const methodMessages: Record<PaymentMethod, string> = {
+      pix: 'Gerando seu código PIX. Aguarde um momento.',
+      credit: 'Preparando pagamento com cartão de crédito. Aguarde.',
+      debit: 'Preparando pagamento com cartão de débito. Aguarde.',
+    };
+    speakNative(methodMessages[paymentMethod]);
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-pix-payment`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1159,6 +1168,7 @@ export default function Subscribe() {
           couponCode: couponValidated ? couponCode : null,
           amount: subscriptionAmount,
           adminAffiliateLinkCode: adminAffiliateLinkCode,
+          paymentMethod: paymentMethod,
         }),
       });
 
@@ -1168,11 +1178,25 @@ export default function Subscribe() {
         throw new Error(data.error || 'Erro ao criar pagamento');
       }
 
-      setPixData(data.pix);
-      setUserTempId(data.userTempId);
-      setPaymentId(data.paymentId);
-      setStep('pix');
-      speakNative('Código PIX gerado com sucesso! Copie o código ou escaneie o QR Code para pagar.');
+      // Handle PIX payment
+      if (data.type === 'pix') {
+        setPixData(data.pix);
+        setUserTempId(data.userTempId);
+        setPaymentId(data.paymentId);
+        setStep('pix');
+        speakNative('Código PIX gerado com sucesso! Copie o código ou escaneie o QR Code para pagar.');
+      } 
+      // Handle card payment (redirect to Mercado Pago)
+      else if (data.type === 'redirect') {
+        setUserTempId(data.userTempId);
+        setCheckoutUrl(data.initPoint);
+        setStep('checkout');
+        speakNative('Redirecionando para o checkout seguro do Mercado Pago.');
+        // Auto redirect after 2 seconds
+        setTimeout(() => {
+          window.location.href = data.initPoint;
+        }, 2000);
+      }
 
     } catch (e: any) {
       console.error('Payment error:', e);
@@ -1865,15 +1889,31 @@ export default function Subscribe() {
                   </div>
                 )}
 
-                {!isTrialMode && (
-                  <div className="mt-4 p-4 bg-primary/10 border border-primary/30 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Valor</span>
-                      <span className="text-2xl font-bold text-primary">
-                        R$ {subscriptionAmount.toFixed(2).replace('.', ',')}
-                      </span>
+                {!isTrialMode && !isAdminAffiliateLink && (
+                  <>
+                    {/* Payment Method Selector */}
+                    <div className="mt-4 p-4 bg-muted/30 border border-border rounded-lg">
+                      <PaymentMethodSelector 
+                        selected={paymentMethod} 
+                        onSelect={setPaymentMethod} 
+                      />
                     </div>
-                  </div>
+
+                    {/* Amount */}
+                    <div className="mt-4 p-4 bg-primary/10 border border-primary/30 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Valor</span>
+                        <span className="text-2xl font-bold text-primary">
+                          R$ {subscriptionAmount.toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                      {paymentMethod === 'credit' && (
+                        <p className="text-xs text-muted-foreground mt-2 text-right">
+                          Parcele em até 12x no cartão
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1920,10 +1960,19 @@ export default function Subscribe() {
           >
             {isLoading || isValidating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : paymentMethod === 'pix' ? (
+              <QrCode className="w-4 h-4 mr-2" />
             ) : (
-              <Sparkles className="w-4 h-4 mr-2" />
+              <CreditCard className="w-4 h-4 mr-2" />
             )}
-            {isTrialMode || isAdminAffiliateLink ? 'Criar conta grátis' : 'Gerar PIX'}
+            {isTrialMode || isAdminAffiliateLink 
+              ? 'Criar conta grátis' 
+              : paymentMethod === 'pix' 
+                ? 'Gerar PIX' 
+                : paymentMethod === 'credit'
+                  ? 'Pagar com Crédito'
+                  : 'Pagar com Débito'
+            }
           </Button>
         ) : (
           <Button
@@ -2000,6 +2049,54 @@ export default function Subscribe() {
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             Aguardando pagamento...
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // Checkout redirect screen (for card payments)
+  if (step === 'checkout' && checkoutUrl) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+        <GlassCard className="w-full max-w-md p-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CreditCard className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-xl font-bold">Checkout Seguro</h2>
+            <p className="text-muted-foreground mt-2">
+              R$ {subscriptionAmount.toFixed(2).replace('.', ',')}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="p-4 bg-muted/30 rounded-xl text-center">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+              <p className="text-sm text-muted-foreground">
+                Redirecionando para o Mercado Pago...
+              </p>
+            </div>
+
+            <Button
+              onClick={() => window.location.href = checkoutUrl}
+              className="w-full"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Ir para checkout
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStep('form');
+                setFormStep('review');
+              }}
+              className="w-full"
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Voltar e alterar método
+            </Button>
           </div>
         </GlassCard>
       </div>
