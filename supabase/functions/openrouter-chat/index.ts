@@ -194,7 +194,7 @@ REGRAS CRÍTICAS:
         'X-Title': 'INOVAPRO AI'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-exp:free',
+        model: 'openai/gpt-4o-mini',
         messages: messages,
         temperature: 0.7,
         max_tokens: 1000
