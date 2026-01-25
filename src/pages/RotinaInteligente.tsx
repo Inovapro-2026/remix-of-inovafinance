@@ -23,7 +23,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { RoutineAnalytics } from '@/components/routines/RoutineAnalytics';
 import { ProductivityCharts } from '@/components/routines/ProductivityCharts';
 import { routineNotificationService } from '@/services/routineNotificationService';
-import { sendGroqMessage, ChatMessage as GroqMessage, UserRoutineContext } from '@/services/groqAIService';
 import { isaSpeak, inovaStop } from '@/services/isaVoiceService';
 import {
   AlertDialog,
@@ -171,77 +170,29 @@ export default function RotinaInteligente() {
         content: m.content
       }));
 
-      // 3. Fetch user's agenda and routines for context
-      const today = new Date().toISOString().split('T')[0];
-      const nextWeek = new Date();
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      const nextWeekStr = nextWeek.toISOString().split('T')[0];
+      // 3. Call OpenRouter Edge Function (fetches user data server-side)
+      console.log('[INOVAPRO AI] Calling OpenRouter edge function...');
+      
+      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('openrouter-chat', {
+        body: { message: messageText, history, userMatricula: user.userId }
+      });
 
-      const [agendaResult, rotinasResult, executionsResult] = await Promise.all([
-        supabase
-          .from('agenda_items')
-          .select('titulo, descricao, data, hora, tipo, concluido')
-          .eq('user_matricula', user.userId)
-          .gte('data', today)
-          .lte('data', nextWeekStr)
-          .order('data', { ascending: true })
-          .order('hora', { ascending: true }),
-        
-        supabase
-          .from('rotinas')
-          .select('titulo, descricao, hora, hora_fim, dias_semana, categoria, prioridade, ativo')
-          .eq('user_matricula', user.userId)
-          .eq('ativo', true),
-        
-        supabase
-          .from('rotina_executions')
-          .select('data, scheduled_time, status')
-          .eq('user_matricula', user.userId)
-          .eq('data', today)
-      ]);
-
-      const userContext: UserRoutineContext = {
-        agendaItems: agendaResult.data?.map(a => ({
-          titulo: a.titulo,
-          data: a.data,
-          hora: a.hora,
-          tipo: a.tipo,
-          concluido: a.concluido || false
-        })) || [],
-        rotinas: rotinasResult.data?.map(r => ({
-          titulo: r.titulo,
-          hora: r.hora,
-          hora_fim: r.hora_fim || undefined,
-          dias_semana: r.dias_semana,
-          categoria: r.categoria || undefined,
-          prioridade: r.prioridade || undefined
-        })) || [],
-        executions: executionsResult.data?.map(e => ({
-          scheduled_time: e.scheduled_time,
-          status: e.status
-        })) || []
-      };
-
-      // 4. Get AI response (Direct Groq integration for speed and reliability)
-      const { message: aiResponse, error: groqError } = await sendGroqMessage(messageText, history, userContext);
-
-      if (groqError) {
-        // Fallback to Edge Function if direct Groq fails
-        console.warn('[Direct Groq Failed] Trying Edge Function...', groqError);
-
-        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('routine-ai-chat', {
-          body: { message: messageText, history, userMatricula: user.userId }
-        });
-
-        if (edgeError) {
-          throw new Error('Falha total na conexão com a IA. Verifique sua chave API.');
-        }
-
-        const finalResponse = edgeData.message;
-        handleAIResponse(finalResponse);
-      } else {
-        handleAIResponse(aiResponse);
+      if (edgeError) {
+        console.error('[INOVAPRO AI] Edge function error:', edgeError);
+        throw new Error('Falha na conexão com a IA. Tente novamente.');
       }
+
+      if (edgeData?.error) {
+        console.error('[INOVAPRO AI] API error:', edgeData.error);
+        throw new Error(edgeData.error);
+      }
+
+      const aiResponse = edgeData?.message;
+      if (!aiResponse) {
+        throw new Error('Resposta vazia da IA');
+      }
+
+      handleAIResponse(aiResponse);
 
     } catch (err) {
       console.error('Error communicating with AI:', err);
