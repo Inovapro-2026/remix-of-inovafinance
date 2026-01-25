@@ -53,138 +53,104 @@ export function SupportChatPopout() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Subscribe to live chat messages when session exists
+  // Poll for new messages every second when session exists
   useEffect(() => {
     if (!sessionId) return;
-
-    // Use a unique channel name
-    const channelName = `user_chat_${sessionId}_${Date.now()}`;
     
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'live_chat_messages'
-        },
-        (payload) => {
-          const newMsg = payload.new as any;
-          
-          // Only process messages for this session
-          if (newMsg.session_id !== sessionId) return;
-          
-          // Only process admin messages (user messages are added locally)
-          if (newMsg.sender_type === 'admin') {
-            // Check if message already exists to avoid duplicates
-            setMessages(prev => {
-              const exists = prev.some(m => m.id === newMsg.id);
-              if (exists) return prev;
-              
-              const adminMessage: Message = {
-                id: newMsg.id,
-                role: 'admin',
-                content: newMsg.message,
-                timestamp: new Date(newMsg.created_at),
-                isAI: false
-              };
-              
-              return [...prev, adminMessage];
-            });
+    const pollMessages = async () => {
+      try {
+        const { data: sessionMessages } = await supabase
+          .from('live_chat_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true });
+
+        if (sessionMessages) {
+          setMessages(prev => {
+            // Keep welcome and system messages
+            const welcomeMsg = prev.find(m => m.id === 'welcome');
+            const systemMsgs = prev.filter(m => 
+              m.id.startsWith('human-request') || 
+              m.id.startsWith('back-to-ai') ||
+              m.id.startsWith('closed-')
+            );
             
-            setChatMode('human');
+            const loadedMessages: Message[] = sessionMessages.map(msg => ({
+              id: msg.id,
+              role: msg.sender_type === 'admin' ? 'admin' as const : msg.sender_type === 'user' ? 'user' as const : 'assistant' as const,
+              content: msg.message,
+              timestamp: new Date(msg.created_at),
+              isAI: msg.is_ai || false
+            }));
             
-            // Show notification if chat is closed
-            if (!isOpen) {
-              setUnreadCount(prev => prev + 1);
-              // Play notification sound
+            // Check for new admin messages to show notification
+            const prevAdminMsgIds = new Set(prev.filter(m => m.role === 'admin').map(m => m.id));
+            const newAdminMsgs = loadedMessages.filter(m => m.role === 'admin' && !prevAdminMsgIds.has(m.id));
+            
+            if (newAdminMsgs.length > 0 && !isOpen) {
+              setUnreadCount(c => c + newAdminMsgs.length);
               try {
                 const audio = new Audio('/notification.mp3');
                 audio.volume = 0.5;
                 audio.play().catch(() => {});
               } catch {}
               
+              const lastMsg = newAdminMsgs[newAdminMsgs.length - 1];
               toast.success('Nova mensagem do atendente!', {
-                description: newMsg.message.substring(0, 50) + (newMsg.message.length > 50 ? '...' : ''),
+                description: lastMsg.content.substring(0, 50) + (lastMsg.content.length > 50 ? '...' : ''),
                 action: {
                   label: 'Abrir',
                   onClick: () => setIsOpen(true)
                 }
               });
             }
-          }
+            
+            // Combine messages
+            const result: Message[] = [];
+            if (welcomeMsg) result.push(welcomeMsg);
+            result.push(...systemMsgs);
+            result.push(...loadedMessages);
+            
+            return result;
+          });
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'live_chat_sessions'
-        },
-        (payload) => {
-          const updatedSession = payload.new as any;
-          
-          // Only process updates for this session
-          if (updatedSession.id !== sessionId) return;
-          
-          // If session was closed by admin, reset chat
-          if (updatedSession.status === 'closed') {
-            handleSessionClosed();
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Reload messages to ensure we have the latest
-          reloadMessages();
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
+      } catch {
+        // Silent fail
+      }
     };
-  }, [sessionId]);
-  
-  // Function to reload messages from database
-  const reloadMessages = async () => {
+    
+    // Poll immediately and then every second
+    pollMessages();
+    const interval = setInterval(pollMessages, 1000);
+    
+    return () => clearInterval(interval);
+  }, [sessionId, isOpen]);
+
+  // Check session status every second
+  useEffect(() => {
     if (!sessionId) return;
     
-    try {
-      const { data: sessionMessages } = await supabase
-        .from('live_chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (sessionMessages && sessionMessages.length > 0) {
-        setMessages(prev => {
-          // Keep welcome message
-          const welcomeMsg = prev.find(m => m.id === 'welcome');
-          const systemMsgs = prev.filter(m => m.id.startsWith('human-request') || m.id.startsWith('back-to-ai'));
-          
-          const loadedMessages: Message[] = sessionMessages.map(msg => ({
-            id: msg.id,
-            role: msg.sender_type === 'admin' ? 'admin' as const : msg.sender_type === 'user' ? 'user' as const : 'assistant' as const,
-            content: msg.message,
-            timestamp: new Date(msg.created_at),
-            isAI: msg.is_ai || false
-          }));
-          
-          // Combine: welcome + system messages + loaded messages
-          const result: Message[] = [];
-          if (welcomeMsg) result.push(welcomeMsg);
-          result.push(...systemMsgs);
-          result.push(...loadedMessages);
-          
-          return result;
-        });
+    const checkSession = async () => {
+      try {
+        const { data: session } = await supabase
+          .from('live_chat_sessions')
+          .select('status')
+          .eq('id', sessionId)
+          .single();
+        
+        if (session?.status === 'closed') {
+          handleSessionClosed();
+        } else if (session?.status === 'active' && chatMode === 'waiting') {
+          setChatMode('human');
+        }
+      } catch {
+        // Silent fail
       }
-    } catch (err) {
-      // Silent fail
-    }
-  };
+    };
+    
+    const interval = setInterval(checkSession, 1000);
+    return () => clearInterval(interval);
+  }, [sessionId, chatMode]);
 
   // Clear unread when opening chat
   useEffect(() => {

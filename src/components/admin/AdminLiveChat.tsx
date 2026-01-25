@@ -55,59 +55,57 @@ export function AdminLiveChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Load sessions
+  // Poll for sessions and messages every second
   useEffect(() => {
     loadSessions();
     
-    // Subscribe to session changes
-    const sessionChannel = supabase
-      .channel('admin_sessions_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'live_chat_sessions' },
-        () => {
-          loadSessions();
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      loadSessions();
+    }, 1000);
 
-    // Subscribe to all message changes
-    const messagesChannel = supabase
-      .channel('admin_messages_channel')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'live_chat_messages' },
-        (payload) => {
-          const newMsg = payload.new as ChatMessage;
-          
-          // Notification for new user messages
-          if (newMsg.sender_type === 'user') {
-            toast({
-              title: "Nova mensagem!",
-              description: "Um cliente enviou uma mensagem.",
-            });
-            // Reload sessions to update
-            loadSessions();
-          }
-          
-          // Update messages if viewing this session
-          if (selectedSession && newMsg.session_id === selectedSession.id) {
-            setMessages(prev => {
-              // Check if message already exists
-              const exists = prev.some(m => m.id === newMsg.id);
-              if (exists) return prev;
-              return [...prev, newMsg];
-            });
-          }
-        }
-      )
-      .subscribe();
+    return () => clearInterval(interval);
+  }, []);
 
-    return () => {
-      supabase.removeChannel(sessionChannel);
-      supabase.removeChannel(messagesChannel);
+  // Poll for messages when a session is selected
+  useEffect(() => {
+    if (!selectedSession) return;
+    
+    const pollMessages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('live_chat_messages')
+          .select('*')
+          .eq('session_id', selectedSession.id)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        
+        setMessages(prev => {
+          // Only update if there are new messages
+          if (data && data.length !== prev.length) {
+            return data;
+          }
+          // Check if last message is different
+          if (data && prev.length > 0 && data.length > 0) {
+            const lastNew = data[data.length - 1];
+            const lastOld = prev[prev.length - 1];
+            if (lastNew.id !== lastOld.id) {
+              return data;
+            }
+          }
+          return prev;
+        });
+      } catch {
+        // Silent fail
+      }
     };
-  }, [selectedSession]);
+    
+    // Poll immediately and every second
+    pollMessages();
+    const interval = setInterval(pollMessages, 1000);
+    
+    return () => clearInterval(interval);
+  }, [selectedSession?.id]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
