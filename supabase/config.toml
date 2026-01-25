@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.routine-ai-chat]
 verify_jwt = false
+
+[functions.openrouter-chat]
+verify_jwt = false

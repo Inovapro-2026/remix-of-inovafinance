@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Constants
 export const SUBSCRIPTION_PRICE = 29.90;
+export const RENEWAL_PRICE = 49.90;
 export const COMMISSION_RATE = 0.50; // 50%
 
 export interface AffiliateAccount {
