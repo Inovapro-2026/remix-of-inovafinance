@@ -9,18 +9,8 @@ import {
   Clock,
   Target,
   Zap,
-  Calendar,
-  CheckCircle2,
-  Lightbulb,
-  BarChart3,
-  MessageCircle,
-  TrendingUp,
-  Bell,
   Mic,
   MicOff,
-  Settings,
-  X,
-  Plus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,8 +36,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+
+// Web Speech API types
+interface ISpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface ISpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface ISpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onresult: ((event: ISpeechRecognitionEvent) => void) | null;
+  onerror: ((event: ISpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
 
 interface ChatMessage {
   id: string;
@@ -284,25 +293,72 @@ export default function RotinaInteligente() {
     }
   };
 
+  // Voice recognition
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+
+  const startVoiceRecording = useCallback(() => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      toast.error('Seu navegador não suporta reconhecimento de voz');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI() as ISpeechRecognition;
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: ISpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setInputValue(prev => prev + (prev ? ' ' : '') + transcript);
+      setIsRecording(false);
+    };
+
+    recognition.onerror = (event: ISpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error);
+      toast.error('Erro no reconhecimento de voz');
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, []);
+
+  const stopVoiceRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  }, []);
+
   // UI Components
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
       {/* Background Glow */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[120px] rounded-full" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 dark:bg-purple-600/10 blur-[120px] rounded-full" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 dark:bg-blue-600/10 blur-[120px] rounded-full" />
 
       {/* Header */}
-      <header className="sticky top-0 z-50 p-4 border-b border-white/5 bg-black/40 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 p-4 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Brain className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg tracking-tight">INOVAPRO <span className="text-purple-400">AI</span></h1>
+              <h1 className="font-bold text-lg tracking-tight">INOVAPRO <span className="text-purple-500 dark:text-purple-400">AI</span></h1>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] uppercase tracking-widest text-white/50 font-medium">Llama 3.3 70B Online</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Online</span>
               </div>
             </div>
           </div>
@@ -311,49 +367,50 @@ export default function RotinaInteligente() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn("rounded-full transition-all", isVoiceActive ? "bg-purple-500/20 text-purple-400" : "text-white/40")}
+              className={cn("rounded-full transition-all", isVoiceActive ? "bg-purple-500/20 text-purple-500" : "text-muted-foreground")}
               onClick={() => setIsVoiceActive(!isVoiceActive)}
+              title={isVoiceActive ? "Desativar voz" : "Ativar voz da IA"}
             >
               {isVoiceActive ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white/40 rounded-full hover:bg-white/5">
+                <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full hover:bg-muted">
                   <Trash2 className="w-5 h-5" />
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="bg-[#121214] border-white/10 text-white">
+              <AlertDialogContent className="bg-background border-border">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Limpar conversa?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-white/60">
-                    Iso apagará permanentemente todo o histórico deste chat.
+                  <AlertDialogDescription className="text-muted-foreground">
+                    Isso apagará permanentemente todo o histórico deste chat.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-white/5 border-white/10 hover:bg-white/10">Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={clearHistory} className="bg-red-500 hover:bg-red-600">Apagar Tudo</AlertDialogAction>
+                  <AlertDialogCancel className="bg-muted border-border hover:bg-muted/80">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={clearHistory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Apagar Tudo</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
 
-            <div className="h-6 w-px bg-white/10 mx-1" />
+            <div className="h-6 w-px bg-border mx-1" />
             <ModeToggle />
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="mt-4 flex p-1 bg-white/5 rounded-xl max-w-sm mx-auto">
+        <div className="mt-4 flex p-1 bg-muted rounded-xl max-w-sm mx-auto">
           {(['chat', 'analise', 'graficos'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setViewMode(tab)}
               className={cn(
                 "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all capitalize",
-                viewMode === tab ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/70"
+                viewMode === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {tab === 'analise' ? 'Desempenho' : tab}
+              {tab === 'analise' ? 'Desempenho' : tab === 'graficos' ? 'Gráficos' : 'Chat'}
             </button>
           ))}
         </div>
@@ -371,19 +428,19 @@ export default function RotinaInteligente() {
               className="flex-1 flex flex-col"
             >
               <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-                <div className="max-w-3xl mx-auto py-8 space-y-6 pb-32">
+                <div className="max-w-3xl mx-auto py-8 space-y-6 pb-40">
                   {messages.length === 0 && !isLoadingHistory && (
                     <div className="text-center space-y-6 py-12">
                       <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="inline-block p-4 rounded-3xl bg-white/5 border border-white/10"
+                        className="inline-block p-4 rounded-3xl bg-muted border border-border"
                       >
-                        <Sparkles className="w-8 h-8 text-purple-400" />
+                        <Sparkles className="w-8 h-8 text-purple-500" />
                       </motion.div>
                       <div className="space-y-2">
-                        <h2 className="text-2xl font-bold">Como posso elevar sua <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">produtividade</span> hoje?</h2>
-                        <p className="text-white/40 text-sm">Eu analiso suas rotinas, dou dicas de foco e ajudo você a dominar seu tempo.</p>
+                        <h2 className="text-2xl font-bold">Como posso elevar sua <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-blue-500">produtividade</span> hoje?</h2>
+                        <p className="text-muted-foreground text-sm">Eu analiso suas rotinas, dou dicas de foco e ajudo você a dominar seu tempo.</p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
@@ -391,11 +448,11 @@ export default function RotinaInteligente() {
                           <button
                             key={i}
                             onClick={() => sendMessage(qp.prompt)}
-                            className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-2xl text-left transition-all group active:scale-[0.98]"
+                            className="bg-muted hover:bg-muted/80 border border-border p-4 rounded-2xl text-left transition-all group active:scale-[0.98]"
                           >
-                            <qp.icon className="w-5 h-5 text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
-                            <p className="text-sm font-medium text-white/80">{qp.text}</p>
-                            <p className="text-[10px] text-white/40 mt-1">Sugerido por INOVAPRO</p>
+                            <qp.icon className="w-5 h-5 text-purple-500 mb-2 group-hover:scale-110 transition-transform" />
+                            <p className="text-sm font-medium">{qp.text}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Sugerido por INOVAPRO AI</p>
                           </button>
                         ))}
                       </div>
@@ -405,7 +462,7 @@ export default function RotinaInteligente() {
                   {isLoadingHistory && (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                       <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-                      <p className="text-white/40 text-xs tracking-widest uppercase">Sincronizando Histórico...</p>
+                      <p className="text-muted-foreground text-xs tracking-widest uppercase">Sincronizando Histórico...</p>
                     </div>
                   )}
 
@@ -421,18 +478,18 @@ export default function RotinaInteligente() {
                     >
                       <div className={cn(
                         "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-1",
-                        msg.role === 'user' ? "bg-white/10 border border-white/10" : "bg-purple-600 shadow-lg shadow-purple-600/20"
+                        msg.role === 'user' ? "bg-muted border border-border" : "bg-purple-600 shadow-lg shadow-purple-600/20"
                       )}>
                         {msg.role === 'user' ? <div className="text-[10px] font-bold">VOCÊ</div> : <Brain className="w-4 h-4 text-white" />}
                       </div>
                       <div className={cn(
                         "max-w-[80%] rounded-2xl px-5 py-3 text-sm leading-relaxed relative group",
                         msg.role === 'user'
-                          ? "bg-white/5 border border-white/10 rounded-tr-none text-white/90"
-                          : "bg-white/[0.03] backdrop-blur-md border border-white/5 rounded-tl-none text-purple-50/90"
+                          ? "bg-muted border border-border rounded-tr-none"
+                          : "bg-purple-500/10 dark:bg-purple-500/20 backdrop-blur-md border border-purple-500/20 rounded-tl-none"
                       )}>
                         <div className="whitespace-pre-wrap">{msg.content}</div>
-                        <span className="absolute bottom-[-20px] left-0 text-[10px] text-white/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="absolute bottom-[-20px] left-0 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                           {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -448,7 +505,7 @@ export default function RotinaInteligente() {
                       <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center flex-shrink-0 animate-pulse">
                         <Brain className="w-4 h-4 text-white" />
                       </div>
-                      <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-none px-5 py-3">
+                      <div className="bg-muted border border-border rounded-2xl rounded-tl-none px-5 py-3">
                         <div className="flex gap-1.5 items-center">
                           <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
                           <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -461,37 +518,67 @@ export default function RotinaInteligente() {
               </ScrollArea>
 
               {/* Input Control */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/90 to-transparent pb-10">
-                <div className="max-w-2xl mx-auto relative flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Textarea
-                      ref={textareaRef}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage();
-                        }
-                      }}
-                      placeholder="Fale com a INOVAPRO..."
-                      className="bg-white/5 border border-white/10 rounded-2xl pr-12 min-h-[56px] py-4 focus-visible:ring-purple-500/50 resize-none overflow-hidden"
-                      rows={1}
-                    />
-                    <div className="absolute right-3 bottom-3 flex items-center gap-2">
-                      <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px] font-medium text-white/40">
-                        <span>ENT</span>
-                      </kbd>
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pb-24">
+                <div className="max-w-2xl mx-auto">
+                  <div className="flex items-end gap-2 bg-card border border-border rounded-2xl p-2 shadow-lg">
+                    {/* Voice Recording Button */}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+                      className={cn(
+                        "h-10 w-10 rounded-xl transition-all flex-shrink-0",
+                        isRecording 
+                          ? "bg-red-500 hover:bg-red-600 text-white animate-pulse" 
+                          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      )}
+                      title={isRecording ? "Parar gravação" : "Gravar áudio"}
+                    >
+                      {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    </Button>
+
+                    {/* Text Input */}
+                    <div className="flex-1 relative">
+                      <Textarea
+                        ref={textareaRef}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                        placeholder={isRecording ? "Ouvindo..." : "Digite sua mensagem..."}
+                        className="bg-transparent border-0 focus-visible:ring-0 resize-none min-h-[40px] max-h-[120px] py-2 px-3 text-sm"
+                        rows={1}
+                        disabled={isRecording}
+                      />
                     </div>
+
+                    {/* Send Button */}
+                    <Button
+                      size="icon"
+                      disabled={!inputValue.trim() || isLoading}
+                      onClick={() => sendMessage()}
+                      className="h-10 w-10 rounded-xl bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-600/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50"
+                    >
+                      {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    </Button>
                   </div>
-                  <Button
-                    size="icon"
-                    disabled={!inputValue.trim() || isLoading}
-                    onClick={() => sendMessage()}
-                    className="h-14 w-14 rounded-2xl bg-purple-600 hover:bg-purple-500 shadow-xl shadow-purple-600/20 active:scale-95 transition-all flex-shrink-0"
-                  >
-                    {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
-                  </Button>
+                  
+                  {/* Recording indicator */}
+                  {isRecording && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-center gap-2 mt-2 text-sm text-red-500"
+                    >
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span>Gravando... Clique no microfone para parar</span>
+                    </motion.div>
+                  )}
                 </div>
               </div>
             </motion.div>
