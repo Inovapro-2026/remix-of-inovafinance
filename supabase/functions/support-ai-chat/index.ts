@@ -133,8 +133,20 @@ INOVAFINANCE é um aplicativo completo de gestão financeira pessoal e produtivi
 
 ## ❓ PERGUNTAS FREQUENTES
 
-### "Como adicionar uma transação?"
-Na tela inicial, toque em "+" ou vá em Transações. Escolha entrada ou saída, preencha valor, categoria e descrição.
+### "Como registrar um gasto ou entrada?"
+Para registrar transações no INOVAFINANCE, use a **aba AI**:
+1. Vá até a aba "AI" no menu inferior
+2. Toque no botão de **microfone** e fale o valor e descrição do gasto/entrada OU digite diretamente no campo de texto
+3. A IA irá processar e registrar a transação automaticamente
+
+Exemplos de comandos:
+- "Gastei 50 reais no mercado"
+- "Recebi 2000 de salário"
+- "Comprei almoço por 35 reais no débito"
+- "Paguei 150 no cartão de crédito em farmácia"
+
+### "Como adicionar uma transação manualmente?"
+A forma principal de registrar transações é pela **aba AI**, usando voz ou texto. A IA processa automaticamente entradas e saídas.
 
 ### "Como editar meu saldo?"
 Na tela inicial, toque no card de Saldo Disponível. Um modal abrirá para editar o valor.
