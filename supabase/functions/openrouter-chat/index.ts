@@ -124,8 +124,6 @@ serve(async (req) => {
         .eq('data', today)
     ]);
 
-    console.log(`[OpenRouter] User ${userMatricula} - Agenda: ${agendaResult.data?.length || 0}, Rotinas: ${rotinasResult.data?.length || 0}, Execuções: ${executionsResult.data?.length || 0}`);
-
     const userContext: UserRoutineContext = {
       agendaItems: agendaResult.data?.map(a => ({
         titulo: a.titulo,

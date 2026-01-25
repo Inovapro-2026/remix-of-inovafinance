@@ -390,11 +390,10 @@ export async function calculateBalance(userId: number): Promise<{
     .maybeSingle();
 
   if (error) {
-    console.error('[calculateBalance] Error querying profile:', error);
+    // Silent error handling - no console exposure
   }
 
   if (!profile) {
-    console.warn(`[calculateBalance] No profile found for matricula: ${userId}`);
     return {
       balance: 0, totalIncome: 0, totalExpense: 0, debitBalance: 0, creditUsed: 0, ganhoTotal: 0, gastoTotal: 0, saldoAtual: 0
     };
@@ -405,8 +404,6 @@ export async function calculateBalance(userId: number): Promise<{
   const ganhoTotal = Number(rawProfile.ganho_total) || 0;
   const gastoTotal = Number(rawProfile.gasto_total) || 0;
   const creditUsed = Number(rawProfile.credit_used) || 0;
-
-  console.log(`[calculateBalance] v2026-01-25-13:00 - Mat. ${userId}:`, saldoAtual);
 
   return {
     balance: saldoAtual,

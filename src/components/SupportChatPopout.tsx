@@ -105,8 +105,7 @@ export function SupportChatPopout() {
       if (response.error) throw response.error;
 
       return response.data.message || response.data.fallback;
-    } catch (error) {
-      console.error('AI Error:', error);
+    } catch {
       return 'Desculpe, estou com dificuldades no momento. Que tal tentar o atendimento humano? 🙏';
     }
   };
@@ -159,25 +158,31 @@ export function SupportChatPopout() {
   };
 
   const requestHumanSupport = async () => {
-    if (!user) {
+    if (!user || !user.userId) {
       toast.error('Você precisa estar logado para falar com um atendente');
       return;
     }
 
     setIsLoading(true);
     try {
-      // Create live chat session
+      // Create live chat session using user_matricula (number)
       const { data: session, error } = await supabase
         .from('live_chat_sessions')
         .insert({
           user_matricula: user.userId,
-          user_name: user.fullName,
+          user_name: user.fullName || 'Usuário',
           status: 'waiting'
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!session) {
+        throw new Error('Sessão não foi criada');
+      }
 
       setSessionId(session.id);
       setChatMode('waiting');
@@ -192,9 +197,9 @@ export function SupportChatPopout() {
       }]);
 
       toast.success('Atendente notificado! Aguarde...');
-    } catch (error) {
-      console.error('Error requesting human support:', error);
-      toast.error('Erro ao solicitar atendimento');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      toast.error(`Erro ao solicitar atendimento: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
