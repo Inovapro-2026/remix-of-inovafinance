@@ -33,7 +33,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { RoutineAnalytics } from '@/components/routines/RoutineAnalytics';
 import { ProductivityCharts } from '@/components/routines/ProductivityCharts';
 import { routineNotificationService } from '@/services/routineNotificationService';
-import { sendGroqMessage, ChatMessage as GroqMessage } from '@/services/groqAIService';
+import { sendGroqMessage, ChatMessage as GroqMessage, UserRoutineContext } from '@/services/groqAIService';
 import { isaSpeak, inovaStop } from '@/services/isaVoiceService';
 import {
   AlertDialog,
@@ -162,15 +162,66 @@ export default function RotinaInteligente() {
         content: m.content
       }));
 
-      // 3. Get AI response (Direct Groq integration for speed and reliability)
-      const { message: aiResponse, error: groqError } = await sendGroqMessage(messageText, history);
+      // 3. Fetch user's agenda and routines for context
+      const today = new Date().toISOString().split('T')[0];
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+      const [agendaResult, rotinasResult, executionsResult] = await Promise.all([
+        supabase
+          .from('agenda_items')
+          .select('titulo, descricao, data, hora, tipo, concluido')
+          .eq('user_matricula', user.userId)
+          .gte('data', today)
+          .lte('data', nextWeekStr)
+          .order('data', { ascending: true })
+          .order('hora', { ascending: true }),
+        
+        supabase
+          .from('rotinas')
+          .select('titulo, descricao, hora, hora_fim, dias_semana, categoria, prioridade, ativo')
+          .eq('user_matricula', user.userId)
+          .eq('ativo', true),
+        
+        supabase
+          .from('rotina_executions')
+          .select('data, scheduled_time, status')
+          .eq('user_matricula', user.userId)
+          .eq('data', today)
+      ]);
+
+      const userContext: UserRoutineContext = {
+        agendaItems: agendaResult.data?.map(a => ({
+          titulo: a.titulo,
+          data: a.data,
+          hora: a.hora,
+          tipo: a.tipo,
+          concluido: a.concluido || false
+        })) || [],
+        rotinas: rotinasResult.data?.map(r => ({
+          titulo: r.titulo,
+          hora: r.hora,
+          hora_fim: r.hora_fim || undefined,
+          dias_semana: r.dias_semana,
+          categoria: r.categoria || undefined,
+          prioridade: r.prioridade || undefined
+        })) || [],
+        executions: executionsResult.data?.map(e => ({
+          scheduled_time: e.scheduled_time,
+          status: e.status
+        })) || []
+      };
+
+      // 4. Get AI response (Direct Groq integration for speed and reliability)
+      const { message: aiResponse, error: groqError } = await sendGroqMessage(messageText, history, userContext);
 
       if (groqError) {
         // Fallback to Edge Function if direct Groq fails
         console.warn('[Direct Groq Failed] Trying Edge Function...', groqError);
 
         const { data: edgeData, error: edgeError } = await supabase.functions.invoke('routine-ai-chat', {
-          body: { message: messageText, history }
+          body: { message: messageText, history, userMatricula: user.userId }
         });
 
         if (edgeError) {
@@ -248,7 +299,7 @@ export default function RotinaInteligente() {
               <Brain className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg tracking-tight">INOVA <span className="text-purple-400">AI</span></h1>
+              <h1 className="font-bold text-lg tracking-tight">INOVAPRO <span className="text-purple-400">AI</span></h1>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-[10px] uppercase tracking-widest text-white/50 font-medium">Llama 3.3 70B Online</span>
@@ -344,7 +395,7 @@ export default function RotinaInteligente() {
                           >
                             <qp.icon className="w-5 h-5 text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
                             <p className="text-sm font-medium text-white/80">{qp.text}</p>
-                            <p className="text-[10px] text-white/40 mt-1">Sugerido por INOVA</p>
+                            <p className="text-[10px] text-white/40 mt-1">Sugerido por INOVAPRO</p>
                           </button>
                         ))}
                       </div>
@@ -423,7 +474,7 @@ export default function RotinaInteligente() {
                           sendMessage();
                         }
                       }}
-                      placeholder="Fale com a INOVA..."
+                      placeholder="Fale com a INOVAPRO..."
                       className="bg-white/5 border border-white/10 rounded-2xl pr-12 min-h-[56px] py-4 focus-visible:ring-purple-500/50 resize-none overflow-hidden"
                       rows={1}
                     />
