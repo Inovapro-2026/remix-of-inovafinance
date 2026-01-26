@@ -170,10 +170,10 @@ export default function RotinaInteligente() {
         content: m.content
       }));
 
-      // 3. Call OpenRouter Edge Function (fetches user data server-side)
-      console.log('[INOVAPRO AI] Calling OpenRouter edge function...');
-      
-      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('openrouter-chat', {
+      // 3. Call Routine AI Edge Function (supports automatic routine parsing + saving)
+      console.log('[INOVAPRO AI] Calling routine-ai-chat edge function...');
+
+      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('routine-ai-chat', {
         body: { message: messageText, history, userMatricula: user.userId }
       });
 
