@@ -43,15 +43,15 @@ function HeroSection() {
         >
           {/* Logo */}
           <div className="mb-8">
-            <span className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-violet-300 bg-clip-text text-transparent">
-              INOVA<span className="text-white">FINANCE</span>
+            <span className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+              INOVA<span className="text-foreground font-black">FINANCE</span>
             </span>
           </div>
 
           {/* Headline */}
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-foreground mb-6 leading-tight">
             Tenha controle total do seu{" "}
-            <span className="bg-gradient-to-r from-purple-400 to-violet-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
               dinheiro
             </span>{" "}
             antes do mês acabar.
@@ -79,10 +79,10 @@ function HeroSection() {
               <motion.div
                 key={index}
                 variants={fadeIn}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/30 backdrop-blur-sm"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 border border-purple-300 backdrop-blur-sm"
               >
-                <badge.icon className="w-4 h-4 text-purple-400" />
-                <span className="text-sm text-purple-200">{badge.text}</span>
+                <badge.icon className="w-4 h-4 text-purple-600" />
+                <span className="text-sm text-purple-800 font-semibold">{badge.text}</span>
               </motion.div>
             ))}
           </motion.div>
@@ -141,9 +141,9 @@ function ProblemSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             Você trabalha, recebe dinheiro…{" "}
-            <span className="text-red-400">mas não sabe para onde ele vai?</span>
+            <span className="text-red-600">mas não sabe para onde ele vai?</span>
           </h2>
         </motion.div>
 
@@ -155,12 +155,12 @@ function ProblemSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-4 p-4 rounded-xl bg-red-500/5 border border-red-500/20 backdrop-blur-sm"
+              className="flex items-center gap-4 p-4 rounded-xl bg-red-50 border border-red-200 backdrop-blur-sm"
             >
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                <problem.icon className="w-5 h-5 text-red-400" />
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <problem.icon className="w-5 h-5 text-red-600" />
               </div>
-              <span className="text-muted-foreground">{problem.text}</span>
+              <span className="text-red-800 font-semibold">{problem.text}</span>
             </motion.div>
           ))}
         </div>
@@ -190,8 +190,8 @@ function SolutionSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            O <span className="text-purple-400">INOVAFINANCE</span> resolve isso para você.
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
+            O <span className="text-purple-600">INOVAFINANCE</span> resolve isso para você.
           </h2>
         </motion.div>
 
@@ -203,12 +203,12 @@ function SolutionSection() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-4 p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 backdrop-blur-sm"
+              className="flex items-center gap-4 p-4 rounded-xl bg-green-50 border border-green-200 backdrop-blur-sm"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
                 <Check className="w-4 h-4 text-white" />
               </div>
-              <span className="text-white font-medium">{solution}</span>
+              <span className="text-green-800 font-bold">{solution}</span>
             </motion.div>
           ))}
         </div>
@@ -252,10 +252,10 @@ function HowItWorksSection() {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             Como funciona?
           </h2>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-gray-700 text-lg font-medium">
             Simples assim. Em 3 passos você já está no controle.
           </p>
         </motion.div>
@@ -276,11 +276,11 @@ function HowItWorksSection() {
               )}>
                 <step.icon className="w-8 h-8 text-white" />
               </div>
-              <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-                <span className="text-purple-400 font-bold">{step.number}</span>
+              <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                <span className="text-purple-700 font-bold">{step.number}</span>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">{step.title}</h3>
-              <p className="text-muted-foreground">{step.description}</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">{step.title}</h3>
+              <p className="text-gray-700 font-medium">{step.description}</p>
             </motion.div>
           ))}
         </div>
@@ -310,10 +310,10 @@ function DashboardSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             📊 Dashboard Inteligente
           </h2>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-gray-700 text-lg font-medium">
             Tudo que você precisa ver, em um só lugar. Atualização em tempo real.
           </p>
         </motion.div>
@@ -337,7 +337,7 @@ function DashboardSection() {
                   className="flex flex-col items-center p-4 rounded-xl bg-background/50 border border-border/50"
                 >
                   <feature.icon className={cn("w-8 h-8 mb-2", feature.color)} />
-                  <span className="text-sm text-muted-foreground text-center">{feature.label}</span>
+                  <span className="text-sm text-gray-800 font-semibold text-center">{feature.label}</span>
                 </motion.div>
               ))}
             </div>
@@ -367,25 +367,25 @@ function AISection() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 mb-6">
-              <Bot className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-300 text-sm">Exclusivo</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 border border-purple-300 mb-6">
+              <Bot className="w-4 h-4 text-purple-600" />
+              <span className="text-purple-800 text-sm font-semibold">Exclusivo</span>
             </div>
             
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
               🤖 IA Financeira Inteligente
             </h2>
-            <p className="text-lg text-muted-foreground mb-6">
+            <p className="text-lg text-gray-700 font-medium mb-6">
               Uma inteligência artificial que entende sua vida financeira.
             </p>
 
             <ul className="space-y-3 mb-8">
               {capabilities.map((cap, index) => (
                 <li key={index} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-purple-400" />
+                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                    <Check className="w-3 h-3 text-green-600" />
                   </div>
-                  <span className="text-muted-foreground">{cap}</span>
+                  <span className="text-gray-800 font-medium">{cap}</span>
                 </li>
               ))}
             </ul>
@@ -404,8 +404,8 @@ function AISection() {
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-white font-medium">ISA - Assistente IA</p>
-                  <p className="text-xs text-muted-foreground">Online</p>
+                  <p className="text-foreground font-bold">ISA - Assistente IA</p>
+                  <p className="text-xs text-green-600 font-semibold">Online</p>
                 </div>
               </div>
               
@@ -496,11 +496,11 @@ function FeaturesSection() {
               transition={{ delay: index * 0.1 }}
               className="p-6 rounded-2xl bg-card/50 border border-border/50 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300"
             >
-              <h3 className="text-xl font-bold text-white mb-4">{feature.title}</h3>
+              <h3 className="text-xl font-bold text-foreground mb-4">{feature.title}</h3>
               <ul className="space-y-2">
                 {feature.items.map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <li key={i} className="flex items-center gap-2 text-gray-800 font-medium">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     {item}
                   </li>
                 ))}
@@ -534,7 +534,7 @@ function AudienceSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             💜 Para quem é o INOVAFINANCE?
           </h2>
         </motion.div>
@@ -547,10 +547,10 @@ function AudienceSection() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-3 p-4 rounded-xl bg-purple-500/10 border border-purple-500/20"
+              className="flex items-center gap-3 p-4 rounded-xl bg-purple-50 border border-purple-200"
             >
-              <audience.icon className="w-6 h-6 text-purple-400" />
-              <span className="text-white">{audience.label}</span>
+              <audience.icon className="w-6 h-6 text-purple-600" />
+              <span className="text-purple-900 font-semibold">{audience.label}</span>
             </motion.div>
           ))}
         </div>
@@ -570,31 +570,31 @@ function PricingSection() {
           viewport={{ once: true }}
           className="text-center"
         >
-          <div className="p-8 rounded-3xl bg-gradient-to-br from-purple-900/50 to-violet-900/50 border border-purple-500/30 backdrop-blur-sm">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 mb-6">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-300 text-sm">Oferta especial</span>
+          <div className="p-8 rounded-3xl bg-gradient-to-br from-purple-100 to-violet-100 border border-purple-300 backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-200 mb-6">
+              <Sparkles className="w-4 h-4 text-purple-700" />
+              <span className="text-purple-800 text-sm font-semibold">Oferta especial</span>
             </div>
 
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-black text-purple-900 mb-2">
               🟣 Teste grátis por 7 dias
             </h2>
             
             <ul className="space-y-3 my-8 text-left max-w-xs mx-auto">
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <Check className="w-5 h-5 text-green-400" />
+              <li className="flex items-center gap-3 text-green-800 font-semibold">
+                <Check className="w-5 h-5 text-green-600" />
                 Sem cartão de crédito
               </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <Check className="w-5 h-5 text-green-400" />
+              <li className="flex items-center gap-3 text-green-800 font-semibold">
+                <Check className="w-5 h-5 text-green-600" />
                 Sem fidelidade
               </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <Check className="w-5 h-5 text-green-400" />
+              <li className="flex items-center gap-3 text-green-800 font-semibold">
+                <Check className="w-5 h-5 text-green-600" />
                 Cancele quando quiser
               </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <Check className="w-5 h-5 text-green-400" />
+              <li className="flex items-center gap-3 text-green-800 font-semibold">
+                <Check className="w-5 h-5 text-green-600" />
                 Acesso completo a todas as funções
               </li>
             </ul>
@@ -633,7 +633,7 @@ function TestimonialsSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             ⭐ O que dizem nossos usuários
           </h2>
         </motion.div>
@@ -653,8 +653,8 @@ function TestimonialsSection() {
                   <span key={i} className="text-yellow-400">⭐</span>
                 ))}
               </div>
-              <p className="text-muted-foreground mb-4">"{testimonial.text}"</p>
-              <p className="text-sm text-purple-400">— {testimonial.author}</p>
+              <p className="text-gray-800 font-medium mb-4">"{testimonial.text}"</p>
+              <p className="text-sm text-purple-700 font-bold">— {testimonial.author}</p>
             </motion.div>
           ))}
         </div>
@@ -683,7 +683,7 @@ function FAQSection() {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-black text-foreground mb-4">
             ❓ Perguntas Frequentes
           </h2>
         </motion.div>
@@ -700,17 +700,17 @@ function FAQSection() {
             >
               <button
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                className="w-full p-4 flex items-center justify-between text-left bg-card/50 hover:bg-card/80 transition-colors"
+                className="w-full p-4 flex items-center justify-between text-left bg-card hover:bg-gray-100 transition-colors"
               >
-                <span className="font-medium text-white">{faq.q}</span>
+                <span className="font-bold text-foreground">{faq.q}</span>
                 <ChevronDown className={cn(
-                  "w-5 h-5 text-purple-400 transition-transform",
+                  "w-5 h-5 text-purple-600 transition-transform",
                   openIndex === index && "rotate-180"
                 )} />
               </button>
               {openIndex === index && (
-                <div className="p-4 bg-muted/20 border-t border-border/50">
-                  <p className="text-muted-foreground">{faq.a}</p>
+                <div className="p-4 bg-green-50 border-t border-green-200">
+                  <p className="text-green-800 font-medium">{faq.a}</p>
                 </div>
               )}
             </motion.div>
@@ -734,15 +734,15 @@ function FinalCTASection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+          <h2 className="text-3xl md:text-5xl font-black text-foreground mb-6">
             🚀 Comece hoje a ter{" "}
-            <span className="bg-gradient-to-r from-purple-400 to-violet-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
               controle total
             </span>{" "}
             do seu dinheiro.
           </h2>
           
-          <p className="text-lg text-muted-foreground mb-8">
+          <p className="text-lg text-gray-700 font-medium mb-8">
             Junte-se a milhares de pessoas que já transformaram sua vida financeira.
           </p>
 
@@ -770,10 +770,10 @@ function Footer() {
   return (
     <footer className="py-8 px-4 border-t border-border/50">
       <div className="max-w-6xl mx-auto text-center">
-        <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-violet-300 bg-clip-text text-transparent">
-          INOVA<span className="text-white">FINANCE</span>
+        <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+          INOVA<span className="text-foreground font-black">FINANCE</span>
         </span>
-        <p className="text-sm text-muted-foreground mt-2">
+        <p className="text-sm text-gray-600 font-medium mt-2">
           © 2024 INOVAFINANCE. Todos os direitos reservados.
         </p>
       </div>
