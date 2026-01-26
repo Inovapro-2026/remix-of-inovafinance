@@ -1685,6 +1685,7 @@ export type Database = {
       }
     }
     Functions: {
+      current_user_matricula: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
