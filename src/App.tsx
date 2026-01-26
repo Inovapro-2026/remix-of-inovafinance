@@ -34,6 +34,7 @@ import Support from "./pages/Support";
 import Subscription from "./pages/Subscription";
 import Admin from "./pages/Admin";
 import LandingPage from "./pages/LandingPage";
+import CtaPage from "./pages/CtaPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/lp" element={<LandingPage />} />
         <Route path="/lp/inovafinace" element={<LandingPage />} />
+        <Route path="/cta" element={<CtaPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/login/afiliados" element={<AffiliateLogin />} />
         <Route path="/cadastros" element={<Cadastros />} />
