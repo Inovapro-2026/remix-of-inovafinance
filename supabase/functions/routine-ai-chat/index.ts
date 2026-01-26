@@ -48,19 +48,19 @@ interface RotinaExecution {
   status: string;
 }
 
-// Day name mappings
+// Day name mappings - Use full names for database compatibility with frontend
 const DAY_MAPPINGS: Record<string, string[]> = {
-  'seg': ['segunda', 'segunda-feira', 'seg'],
-  'ter': ['terça', 'terca', 'terça-feira', 'terca-feira', 'ter'],
-  'qua': ['quarta', 'quarta-feira', 'qua'],
-  'qui': ['quinta', 'quinta-feira', 'qui'],
-  'sex': ['sexta', 'sexta-feira', 'sex'],
-  'sab': ['sábado', 'sabado', 'sab'],
-  'dom': ['domingo', 'dom'],
+  'segunda': ['segunda', 'segunda-feira', 'seg'],
+  'terca': ['terça', 'terca', 'terça-feira', 'terca-feira', 'ter'],
+  'quarta': ['quarta', 'quarta-feira', 'qua'],
+  'quinta': ['quinta', 'quinta-feira', 'qui'],
+  'sexta': ['sexta', 'sexta-feira', 'sex'],
+  'sabado': ['sábado', 'sabado', 'sab'],
+  'domingo': ['domingo', 'dom'],
 };
 
-const ALL_WEEKDAYS = ['seg', 'ter', 'qua', 'qui', 'sex'];
-const ALL_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+const ALL_WEEKDAYS = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];
+const ALL_DAYS = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
 
 /**
  * Normalize day name to short format (seg, ter, qua, etc.)
@@ -165,7 +165,7 @@ function parseRoutineSchedule(message: string): ParsedRoutine[] {
       // Handle range patterns
       if (lowerLine.includes('terça-feira em diante') || lowerLine.includes('terca-feira em diante') ||
           lowerLine.includes('terça em diante') || lowerLine.includes('terca em diante')) {
-        currentDays = ['ter', 'qua', 'qui', 'sex'];
+        currentDays = ['terca', 'quarta', 'quinta', 'sexta'];
       } else if (lowerLine.includes('de segunda a sexta') || lowerLine.includes('segunda a sexta')) {
         currentDays = ALL_WEEKDAYS;
       } else if (lowerLine.includes('todo dia') || lowerLine.includes('todos os dias')) {
@@ -292,26 +292,26 @@ function generateConfirmationMessage(routines: ParsedRoutine[]): string {
     const days = daysKey.split(',');
     let dayLabel = '';
     
-    if (days.length === 5 && days.join(',') === 'qua,qui,seg,sex,ter') {
+    if (days.length === 5 && days.sort().join(',') === 'quarta,quinta,segunda,sexta,terca') {
       dayLabel = 'Segunda a Sexta';
     } else if (days.length === 7) {
       dayLabel = 'Todos os dias';
-    } else if (days.length === 4 && days.includes('ter') && !days.includes('seg')) {
+    } else if (days.length === 4 && days.includes('terca') && !days.includes('segunda')) {
       dayLabel = 'Terça a Sexta';
     } else if (days.length === 1) {
       const dayNames: Record<string, string> = {
-        'seg': 'Segunda-feira',
-        'ter': 'Terça-feira',
-        'qua': 'Quarta-feira',
-        'qui': 'Quinta-feira',
-        'sex': 'Sexta-feira',
-        'sab': 'Sábado',
-        'dom': 'Domingo'
+        'segunda': 'Segunda-feira',
+        'terca': 'Terça-feira',
+        'quarta': 'Quarta-feira',
+        'quinta': 'Quinta-feira',
+        'sexta': 'Sexta-feira',
+        'sabado': 'Sábado',
+        'domingo': 'Domingo'
       };
       dayLabel = dayNames[days[0]] || days[0];
     } else {
       dayLabel = days.map(d => {
-        const names: Record<string, string> = { 'seg': 'Seg', 'ter': 'Ter', 'qua': 'Qua', 'qui': 'Qui', 'sex': 'Sex', 'sab': 'Sáb', 'dom': 'Dom' };
+        const names: Record<string, string> = { 'segunda': 'Seg', 'terca': 'Ter', 'quarta': 'Qua', 'quinta': 'Qui', 'sexta': 'Sex', 'sabado': 'Sáb', 'domingo': 'Dom' };
         return names[d] || d;
       }).join(', ');
     }
