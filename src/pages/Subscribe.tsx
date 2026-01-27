@@ -19,7 +19,7 @@ import { speakNative, stopNativeSpeaking } from '@/services/nativeTtsService';
 import { cn } from '@/lib/utils';
 
 type Step = 'form' | 'processing' | 'pix' | 'checkout' | 'success' | 'error' | 'trial_success';
-type FormStep = 'name' | 'email' | 'otp_verify' | 'phone' | 'cpf' | 'salary' | 'balances' | 'creditCard' | 'affiliate' | 'coupon' | 'pixKey' | 'review';
+type FormStep = 'name' | 'email' | 'otp_verify' | 'password' | 'phone' | 'cpf' | 'salary' | 'balances' | 'creditCard' | 'affiliate' | 'coupon' | 'pixKey' | 'review';
 
 interface PixData {
   qrCode: string | null;
@@ -33,8 +33,9 @@ const SUPABASE_URL = "https://pahvovxnhqsmcnqncmys.supabase.co";
 // Step voice explanations
 const STEP_EXPLANATIONS: Record<FormStep, string> = {
   name: 'Vamos começar! Digite seu nome completo. Este será usado para identificar sua conta.',
-  email: 'Agora digite seu e-mail. Este campo é opcional, mas recomendado para segurança da conta.',
+  email: 'Agora digite seu e-mail. Este campo é obrigatório para login na sua conta.',
   otp_verify: 'Digite o código de 8 dígitos que enviamos para seu e-mail.',
+  password: 'Crie uma senha segura para sua conta. Use pelo menos 6 caracteres.',
   phone: 'Digite seu número de telefone com DDD. Usaremos para contato importante sobre sua conta.',
   cpf: 'Agora digite seu CPF. Este documento é necessário para verificação de identidade.',
   salary: 'Informe seu salário mensal e o dia do pagamento. Isso nos ajuda a organizar seu planejamento financeiro.',
@@ -85,6 +86,12 @@ export default function Subscribe() {
   const [canResendOtp, setCanResendOtp] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Password
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
 
   // Real-time validation states
   const [cpfValidation, setCpfValidation] = useState<{ status: 'idle' | 'checking' | 'valid' | 'invalid' | 'duplicate'; message: string }>({ status: 'idle', message: '' });
@@ -714,7 +721,7 @@ export default function Subscribe() {
 
   // Get form steps based on context
   const getFormSteps = (): FormStep[] => {
-    const steps: FormStep[] = ['name', 'email', 'otp_verify'];
+    const steps: FormStep[] = ['name', 'email', 'otp_verify', 'password'];
 
     steps.push('phone', 'cpf', 'salary', 'balances', 'creditCard');
 
@@ -733,27 +740,78 @@ export default function Subscribe() {
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === formSteps.length - 1;
 
+  // Handle password setup
+  const handleSetPassword = async () => {
+    setPasswordError('');
+
+    if (password.length < 6) {
+      setPasswordError('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordError('As senhas não coincidem');
+      return;
+    }
+
+    setIsSettingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+
+      if (error) {
+        throw error;
+      }
+
+      speakNative('Senha criada com sucesso!');
+      toast({
+        title: "✅ Senha criada!",
+        description: "Sua senha foi definida com sucesso.",
+      });
+
+      setTimeout(() => {
+        setFormStep('phone');
+      }, 1000);
+    } catch (e: any) {
+      console.error('Password set error:', e);
+      setPasswordError(e.message || 'Erro ao definir senha');
+    } finally {
+      setIsSettingPassword(false);
+    }
+  };
+
   // Navigation functions
   const goToNextStep = () => {
     stopNativeSpeaking();
 
-    // Special handling for email step - send OTP if email provided
-    if (formStep === 'email' && email.trim() && !otpVerified) {
-      sendOtpCode();
-      return;
+    // Special handling for email step - require email and send OTP
+    if (formStep === 'email') {
+      if (!email.trim()) {
+        setError('E-mail é obrigatório para criar sua conta');
+        return;
+      }
+      if (!otpVerified) {
+        sendOtpCode();
+        return;
+      }
     }
 
-    // Special handling for OTP verification - go directly to phone
+    // Special handling for OTP verification - go to password step
     if (formStep === 'otp_verify') {
-      setFormStep('phone');
+      setFormStep('password');
       return;
     }
 
-    // Skip OTP verification step in normal navigation (only go there via sendOtpCode)
+    // Special handling for password step
+    if (formStep === 'password') {
+      handleSetPassword();
+      return;
+    }
+
+    // Skip OTP verification and password steps in normal navigation
     if (!isLastStep) {
       let nextIndex = currentStepIndex + 1;
-      // Skip otp_verify if we're going through normal flow (no email provided)
-      while (formSteps[nextIndex] === 'otp_verify' && !otpVerified && nextIndex < formSteps.length - 1) {
+      while ((formSteps[nextIndex] === 'otp_verify' || formSteps[nextIndex] === 'password') && !otpVerified && nextIndex < formSteps.length - 1) {
         nextIndex++;
       }
       setFormStep(formSteps[nextIndex]);
@@ -1339,6 +1397,71 @@ export default function Subscribe() {
     </div>
   );
 
+  // Render password step
+  const renderPasswordStep = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center mx-auto mb-4">
+          <KeyRound className="w-8 h-8 text-primary-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold">Crie sua senha</h3>
+        <p className="text-sm text-muted-foreground mt-2">
+          Esta senha será usada para acessar sua conta
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Senha</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mínimo 6 caracteres"
+            className="bg-background/50 h-12"
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Confirmar senha</Label>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Digite a senha novamente"
+            className="bg-background/50 h-12"
+          />
+        </div>
+      </div>
+
+      {passwordError && (
+        <p className="text-sm text-center text-destructive flex items-center justify-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          {passwordError}
+        </p>
+      )}
+
+      <Button
+        onClick={handleSetPassword}
+        disabled={isSettingPassword || password.length < 6 || password !== confirmPassword}
+        className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+      >
+        {isSettingPassword ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Salvando...
+          </>
+        ) : (
+          <>
+            <KeyRound className="w-4 h-4 mr-2" />
+            Criar senha
+          </>
+        )}
+      </Button>
+    </div>
+  );
+
   // Render current form step
   const renderFormStep = () => {
     // Special case: OTP verification
@@ -1352,6 +1475,21 @@ export default function Subscribe() {
           transition={{ duration: 0.3 }}
         >
           {renderOtpStep()}
+        </motion.div>
+      );
+    }
+
+    // Special case: Password step
+    if (formStep === 'password') {
+      return (
+        <motion.div
+          key="password"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          {renderPasswordStep()}
         </motion.div>
       );
     }
