@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, User, Wallet, Mail, Phone, CreditCard, Calendar, UserPlus, CheckCircle, Sparkles, Fingerprint, Briefcase, DollarSign, CalendarDays, Download } from 'lucide-react';
+import { Shield, User, Wallet, Mail, Phone, CreditCard, Calendar, UserPlus, Sparkles, Fingerprint, Briefcase, DollarSign, CalendarDays } from 'lucide-react';
 import { NumericKeypad } from '@/components/NumericKeypad';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -14,7 +13,6 @@ import {
   isPlatformAuthenticatorAvailable,
   isBiometricEnabled,
   authenticateWithBiometric,
-  getBiometricMatricula
 } from '@/services/biometricService';
 import { playAudioExclusively, stopAllAudio } from '@/services/audioManager';
 import { wasLoginAudioPlayed, markLoginAudioPlayed, stopAllVoice } from '@/services/voiceQueueService';
@@ -22,88 +20,7 @@ import loginAudio from '@/assets/login-audio.mp3';
 
 type Step = 'matricula' | 'register' | 'success' | 'pending' | 'rejected';
 
-// Componente de fundo memoizado para evitar re-renderizações caras
-const AnimatedBackground = memo(({ introPhase }: { introPhase: string }) => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {/* Grid pattern overlay */}
-    <div 
-      className="absolute inset-0 opacity-[0.03]"
-      style={{
-        backgroundImage: `linear-gradient(rgba(var(--primary-rgb), 0.3) 1px, transparent 1px),
-                          linear-gradient(90deg, rgba(var(--primary-rgb), 0.3) 1px, transparent 1px)`,
-        backgroundSize: '50px 50px'
-      }}
-    />
-    
-    {/* Animated glow orbs - tech style */}
-    <motion.div
-      className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-radial from-primary/20 via-primary/5 to-transparent rounded-full blur-[80px]"
-      animate={{
-        scale: [1, 1.1, 1],
-        opacity: [0.2, 0.3, 0.2]
-      }}
-      transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-    />
-    <motion.div
-      className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-radial from-emerald-500/15 via-emerald-500/5 to-transparent rounded-full blur-[60px]"
-      animate={{
-        scale: [1, 1.15, 1],
-        opacity: [0.15, 0.25, 0.15]
-      }}
-      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-    />
-    <motion.div
-      className="absolute top-0 left-0 w-[300px] h-[300px] bg-gradient-radial from-blue-500/10 via-transparent to-transparent rounded-full blur-[40px]"
-      animate={{
-        scale: [1, 1.2, 1],
-        opacity: [0.1, 0.2, 0.1]
-      }}
-      transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 4 }}
-    />
-
-    {/* Floating particles - tech effect */}
-    {introPhase === 'content' && [...Array(6)].map((_, i) => (
-      <motion.div
-        key={`particle-${i}`}
-        className="absolute w-1 h-1 bg-primary/60 rounded-full"
-        style={{
-          left: `${15 + i * 15}%`,
-          top: `${20 + (i % 3) * 25}%`,
-        }}
-        animate={{
-          y: [0, -30, 0],
-          x: [0, i % 2 === 0 ? 10 : -10, 0],
-          opacity: [0.3, 0.8, 0.3],
-          scale: [1, 1.5, 1]
-        }}
-        transition={{
-          duration: 3 + i * 0.5,
-          repeat: Infinity,
-          delay: i * 0.4,
-          ease: "easeInOut"
-        }}
-      />
-    ))}
-    
-    {/* Scan line effect */}
-    <motion.div
-      className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"
-      animate={{
-        top: ['0%', '100%']
-      }}
-      transition={{
-        duration: 8,
-        repeat: Infinity,
-        ease: "linear"
-      }}
-    />
-  </div>
-));
-
-AnimatedBackground.displayName = 'AnimatedBackground';
-
 export default function Login() {
-  const [introPhase, setIntroPhase] = useState<'logo' | 'tagline' | 'content'>('content');
   const [step, setStep] = useState<Step>('matricula');
   const [matricula, setMatricula] = useState('');
   const [generatedMatricula, setGeneratedMatricula] = useState('');
@@ -130,7 +47,10 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const { login, user, isLoading: authLoading } = useAuth();
 
-  // ✅ Pre-fill matricula from URL query parameter (from cadastro-finalizado redirect)
+  const loginAudioPlayedRef = useRef(false);
+  const matriculaInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Pre-fill matricula from URL query parameter
   useEffect(() => {
     const matriculaParam = searchParams.get('matricula');
     if (matriculaParam && matriculaParam.length === 6 && /^\d{6}$/.test(matriculaParam)) {
@@ -138,61 +58,32 @@ export default function Login() {
     }
   }, [searchParams]);
 
-  // Play login audio only once per session and only on /login route when NOT authenticated
-  const loginAudioPlayedRef = useRef(false);
-  const matriculaInputRef = useRef<HTMLInputElement | null>(null);
-  
+  // Play login audio only once per session
   useEffect(() => {
-    // Wait for auth state to settle
     if (authLoading) return;
-
-    // CRITICAL: Only play on /login route
-    if (location.pathname !== '/login') {
-      console.log('[Login] Audio skipped: not on /login route');
-      return;
-    }
-
-    // CRITICAL: Never play if user is logged in
-    if (user) {
-      console.log('[Login] Audio skipped: user is authenticated');
-      return;
-    }
+    if (location.pathname !== '/login') return;
+    if (user) return;
+    if (wasLoginAudioPlayed() || loginAudioPlayedRef.current) return;
     
-    // Check if audio was already played this session using centralized service
-    if (wasLoginAudioPlayed() || loginAudioPlayedRef.current) {
-      console.log('[Login] Audio skipped: already played this session');
-      return;
-    }
-    
-    // Mark as played BEFORE playing to prevent race conditions
     loginAudioPlayedRef.current = true;
     markLoginAudioPlayed();
     
-    // Small delay to ensure intro audio has fully stopped
     const timer = setTimeout(() => {
-      // Stop any other audio first
       stopAllVoice();
       stopAllAudio();
-      
       const audio = new Audio(loginAudio);
-      playAudioExclusively(audio)
-        .then(() => console.log('[Login] Audio completed'))
-        .catch((err) => console.error('[Login] Audio error:', err));
+      playAudioExclusively(audio).catch(console.error);
     }, 600);
     
-    return () => {
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [user, authLoading, location.pathname]);
-  
 
-  // Check biometric availability on mount
+  // Check biometric availability
   useEffect(() => {
     const checkBiometric = async () => {
       const supported = isBiometricSupported();
       const available = await isPlatformAuthenticatorAvailable();
       const enabled = isBiometricEnabled();
-
       setBiometricAvailable(supported && available);
       setBiometricEnabled(enabled);
     };
@@ -206,7 +97,6 @@ export default function Login() {
     }
   }, [matricula]);
 
-  // Handle biometric login
   const handleBiometricLogin = async () => {
     setIsLoading(true);
     setError('');
@@ -215,7 +105,6 @@ export default function Login() {
       const storedMatricula = await authenticateWithBiometric();
 
       if (storedMatricula) {
-        // Verify user exists in Supabase
         const { data: existingUser, error: fetchError } = await supabase
           .from('users_matricula')
           .select('*')
@@ -225,26 +114,20 @@ export default function Login() {
         if (fetchError) throw fetchError;
 
         if (existingUser) {
-          // Check user status for biometric login too
           const userStatus = existingUser.user_status as string;
 
           if (userStatus === 'pending') {
             setStep('pending');
             return;
           }
-
           if (userStatus === 'rejected') {
             setStep('rejected');
             return;
           }
-
           if (userStatus === 'approved') {
             const success = await login(storedMatricula, existingUser.full_name || '');
-            if (success) {
-              navigate('/');
-            } else {
-              setError('Erro ao fazer login');
-            }
+            if (success) navigate('/');
+            else setError('Erro ao fazer login');
           } else {
             setError('Status de conta inválido');
           }
@@ -262,27 +145,21 @@ export default function Login() {
     }
   };
 
-  // Gerar matrícula única de 6 dígitos
   const generateMatricula = async (): Promise<number> => {
     let attempts = 0;
     const maxAttempts = 10;
 
     while (attempts < maxAttempts) {
       const newMatricula = Math.floor(100000 + Math.random() * 900000);
-
-      // Verificar se já existe no Supabase
       const { data } = await supabase
         .from('users_matricula')
         .select('matricula')
         .eq('matricula', newMatricula)
         .maybeSingle();
 
-      if (!data) {
-        return newMatricula;
-      }
+      if (!data) return newMatricula;
       attempts++;
     }
-
     throw new Error('Não foi possível gerar matrícula única');
   };
 
@@ -296,7 +173,6 @@ export default function Login() {
     setError('');
 
     try {
-      // Verificar se usuário existe no Supabase
       const { data: existingUser, error: fetchError } = await supabase
         .from('users_matricula')
         .select('*')
@@ -306,27 +182,20 @@ export default function Login() {
       if (fetchError) throw fetchError;
 
       if (existingUser) {
-        // Check user status before allowing login
         const userStatus = existingUser.user_status as string;
 
         if (userStatus === 'pending') {
           setStep('pending');
           return;
         }
-
         if (userStatus === 'rejected') {
           setStep('rejected');
           return;
         }
-
-        // Only approved users can login
         if (userStatus === 'approved') {
           const success = await login(parseInt(matricula), existingUser.full_name || '');
-          if (success) {
-            navigate('/');
-          } else {
-            setError('Erro ao fazer login');
-          }
+          if (success) navigate('/');
+          else setError('Erro ao fazer login');
         } else {
           setError('Status de conta inválido');
         }
@@ -355,10 +224,8 @@ export default function Login() {
     setError('');
 
     try {
-      // Gerar matrícula única
       const newMatricula = await generateMatricula();
 
-      // Criar usuário no Supabase
       const { error: insertError } = await supabase
         .from('users_matricula')
         .insert({
@@ -379,16 +246,8 @@ export default function Login() {
 
       if (insertError) throw insertError;
 
-      // Calcular próxima data de vencimento baseado no dia
       const dueDay = parseInt(creditDueDay) || 5;
-      const today = new Date();
-      let dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
-      if (dueDate <= today) {
-        dueDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
-      }
-
-      // Login local com os dados extras
-      const success = await login(
+      await login(
         newMatricula,
         fullName.trim(),
         email.trim(),
@@ -398,8 +257,6 @@ export default function Login() {
         dueDay
       );
 
-      // Don't login the user - account needs admin approval
-      // Just show success screen with pending message
       setGeneratedMatricula(newMatricula.toString());
       setStep('success');
     } catch (err) {
@@ -411,7 +268,6 @@ export default function Login() {
   };
 
   const handleGoToLogin = () => {
-    // Logout and go back to login screen
     setMatricula('');
     setGeneratedMatricula('');
     setFullName('');
@@ -439,828 +295,516 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-y-auto overflow-x-hidden">
-      <AnimatedBackground introPhase={introPhase} />
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 bg-gray-50">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="relative w-20 h-20 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5" />
+            <div className="relative z-10 w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg">
+              <Wallet className="w-7 h-7 text-white" />
+            </div>
+          </div>
 
-      {/* INTRO ANIMATION SEQUENCE */}
-      <AnimatePresence mode="wait">
-        {/* Phase 1: Logo Only - Otimizado */}
-        {introPhase === 'logo' && (
-          <motion.div
-            key="intro-logo"
-            className="relative z-10 flex flex-col items-center justify-center"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05, y: -30 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          >
-            {/* Large INOVAFINANCE text */}
-            <h1 className="font-display text-4xl md:text-5xl font-bold text-center text-foreground">
+          <div className="relative">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-wider text-gray-900">
               INOVAFINANCE
             </h1>
+            <div className="h-0.5 bg-gradient-to-r from-transparent via-emerald-500 to-transparent mt-2" />
+          </div>
+        </div>
 
-            {/* Glowing underline simplificado */}
-            <motion.div
-              className="h-1 bg-gradient-to-r from-primary via-secondary to-emerald-400 rounded-full mt-3"
-              initial={{ width: 0 }}
-              animate={{ width: 150 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            />
-          </motion.div>
-        )}
+        <p className="text-gray-600 text-sm mt-4 flex items-center justify-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-500" />
+          Seu assistente financeiro inteligente
+          <Sparkles className="w-4 h-4 text-emerald-500" />
+        </p>
+      </div>
 
-        {/* Phase 2: Tagline - Otimizado */}
-        {introPhase === 'tagline' && (
-          <motion.div
-            key="intro-tagline"
-            className="relative z-10 flex flex-col items-center justify-center"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <p className="text-xl md:text-2xl text-muted-foreground text-center font-medium">
-              Seu assistente financeiro inteligente
-            </p>
+      {/* Login Form */}
+      {step === 'matricula' && (
+        <div className="w-full max-w-sm">
+          <div className="relative">
+            <div className="absolute -inset-[1px] bg-gradient-to-r from-emerald-500/30 via-emerald-400/30 to-emerald-500/30 rounded-2xl" />
+            
+            <GlassCard className="relative p-6 bg-white border-0 shadow-lg">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Shield className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Acesso Seguro</h2>
+              </div>
+              <p className="text-gray-600 text-sm text-center mb-6">
+                Digite sua matrícula de 6 dígitos
+              </p>
 
-            {/* Loading dots simplificados */}
-            <div className="flex gap-2 mt-4">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  className="w-2 h-2 rounded-full bg-primary"
-                  animate={{
-                    y: [0, -6, 0],
-                    opacity: [0.4, 1, 0.4]
+              {/* PIN Display */}
+              <div
+                className="relative flex justify-center gap-2 mb-6 cursor-pointer"
+                onClick={() => matriculaInputRef.current?.focus()}
+              >
+                <input
+                  ref={matriculaInputRef}
+                  value={matricula}
+                  onChange={(e) => {
+                    const onlyNumbers = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setMatricula(onlyNumbers);
                   }}
-                  transition={{
-                    duration: 0.8,
-                    repeat: Infinity,
-                    delay: i * 0.1
-                  }}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
+                  aria-label="Matrícula"
+                  className="absolute inset-0 opacity-0"
                 />
-              ))}
-            </div>
-          </motion.div>
-        )}
 
-        {/* Phase 3: Full Content - Otimizado */}
-        {introPhase === 'content' && (
-          <motion.div
-            key="intro-content"
-            className="relative z-10 flex flex-col items-center w-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            {/* Tech-style Logo */}
-            <motion.div
-              initial={{ opacity: 0, y: -15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center mb-8"
-            >
-              <div className="flex flex-col items-center justify-center gap-4">
-                <motion.div
-                  className="relative"
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 150, damping: 15, delay: 0.1 }}
-                >
-                  {/* Outer glow ring */}
-                  <motion.div 
-                    className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-primary via-emerald-500 to-primary opacity-20 blur-xl"
-                    animate={{ 
-                      opacity: [0.2, 0.4, 0.2],
-                      scale: [1, 1.05, 1]
-                    }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                  />
-                  
-                  {/* Tech hexagon container */}
-                  <div className="relative w-24 h-24 flex items-center justify-center">
-                    {/* Rotating border */}
-                    <motion.div
-                      className="absolute inset-0 rounded-2xl border-2 border-primary/50"
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                      style={{
-                        background: 'linear-gradient(135deg, hsl(var(--primary)/0.1), hsl(var(--primary)/0.05))'
-                      }}
-                    />
-                    
-                    {/* Inner icon */}
-                    <div className="relative z-10 w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30">
-                      <Wallet className="w-8 h-8 text-primary-foreground" />
-                    </div>
-                    
-                    {/* Corner accents */}
-                    <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary rounded-br-lg" />
+                {[...Array(6)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-11 h-14 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-150 ${
+                      matricula[i]
+                        ? 'bg-emerald-100 border-2 border-emerald-500 shadow-sm'
+                        : 'bg-gray-100 border-2 border-gray-200'
+                    }`}
+                  >
+                    {matricula[i] && (
+                      <span className="text-emerald-600 font-mono">{matricula[i]}</span>
+                    )}
+                    {!matricula[i] && i === matricula.length && (
+                      <div className="w-0.5 h-6 bg-emerald-500 animate-pulse" />
+                    )}
                   </div>
-                </motion.div>
-
-                {/* Bank name with tech styling */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="relative"
-                >
-                  <h1 className="font-display text-3xl md:text-4xl font-bold tracking-wider bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent">
-                    INOVAFINANCE
-                  </h1>
-                  <motion.div 
-                    className="h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent mt-2"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ delay: 0.4, duration: 0.6 }}
-                  />
-                </motion.div>
+                ))}
               </div>
 
-              <motion.p
-                className="text-muted-foreground text-sm mt-4 flex items-center justify-center gap-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Sparkles className="w-4 h-4 text-primary" />
-                Seu assistente financeiro inteligente
-                <Sparkles className="w-4 h-4 text-primary" />
-              </motion.p>
-            </motion.div>
+              <NumericKeypad
+                value={matricula}
+                onChange={setMatricula}
+                onSubmit={handleMatriculaSubmit}
+                maxLength={6}
+                autoSubmit={true}
+              />
 
-            {/* Login Form - Tech style */}
-            <AnimatePresence mode="wait">
-              {step === 'matricula' && (
-                <motion.div
-                  key="matricula"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-sm"
+              {error && (
+                <p className="text-red-600 text-sm text-center mt-4 flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  {error}
+                </p>
+              )}
+
+              {isLoading && (
+                <div className="flex justify-center mt-4">
+                  <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              {/* Biometric Login Button */}
+              {biometricAvailable && biometricEnabled && (
+                <div className="mt-4">
+                  <button
+                    onClick={handleBiometricLogin}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition-colors text-white font-medium shadow-md"
+                  >
+                    <Fingerprint className="w-5 h-5" />
+                    Entrar com biometria
+                  </button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Use sua digital ou Face ID
+                  </p>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
+                <button
+                  onClick={() => navigate('/subscribe')}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition-colors text-white font-medium shadow-md"
                 >
-                  <div className="relative">
-                    {/* Tech border effect */}
-                    <div className="absolute -inset-[1px] bg-gradient-to-r from-primary/50 via-emerald-500/50 to-primary/50 rounded-2xl opacity-50" />
-                    
-                    <GlassCard className="relative p-6 backdrop-blur-xl bg-card/90 border-0">
-                      {/* Header with icon */}
-                      <div className="flex items-center justify-center gap-2 mb-2">
-                        <Shield className="w-5 h-5 text-primary" />
-                        <h2 className="text-xl font-semibold">
-                          Acesso Seguro
-                        </h2>
-                      </div>
-                      <p className="text-muted-foreground text-sm text-center mb-6">
-                        Digite sua matrícula de 6 dígitos
-                      </p>
+                  <CreditCard className="w-5 h-5" />
+                  Assine agora
+                </button>
+                <button
+                  onClick={() => navigate('/subscribe?trial=true')}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 hover:bg-emerald-100 transition-colors text-emerald-700 font-medium"
+                >
+                  <Calendar className="w-5 h-5" />
+                  Teste grátis por 7 dias
+                </button>
+              </div>
+              
+              <InstallAppButton />
+            </GlassCard>
+          </div>
+        </div>
+      )}
 
-                      {/* PIN Display with tech styling */}
-                      <div
-                        className="relative flex justify-center gap-2 mb-6"
-                        onClick={() => matriculaInputRef.current?.focus()}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') matriculaInputRef.current?.focus();
-                        }}
-                      >
-                        {/* Input invisível para ativar o teclado numérico no mobile */}
-                        <input
-                          ref={matriculaInputRef}
-                          value={matricula}
-                          onChange={(e) => {
-                            const onlyNumbers = e.target.value.replace(/\D/g, '').slice(0, 6);
-                            setMatricula(onlyNumbers);
-                          }}
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          autoComplete="one-time-code"
-                          aria-label="Matrícula"
-                          className="absolute inset-0 opacity-0"
-                        />
+      {step === 'register' && (
+        <div className="w-full max-w-sm max-h-[60dvh] overflow-y-auto pr-2 pb-4">
+          <GlassCard className="p-6 bg-white shadow-lg">
+            <h2 className="text-xl font-semibold text-center mb-1 text-gray-900">Criar conta</h2>
+            <p className="text-gray-600 text-xs text-center mb-6">
+              Complete seu cadastro para continuar
+            </p>
 
-                        {[...Array(6)].map((_, i) => (
-                          <motion.div
-                            key={i}
-                            className={`relative w-11 h-14 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 ${
-                              matricula[i]
-                                ? 'bg-primary/20 border-2 border-primary shadow-lg shadow-primary/20'
-                                : 'bg-muted/30 border-2 border-border/50'
-                            }`}
-                            animate={matricula[i] ? { scale: [1, 1.08, 1] } : {}}
-                            transition={{ duration: 0.15 }}
-                          >
-                            {matricula[i] && (
-                              <motion.span
-                                initial={{ scale: 0, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="text-primary font-mono"
-                              >
-                                {matricula[i]}
-                              </motion.span>
-                            )}
-                            {!matricula[i] && i === matricula.length && (
-                              <motion.div
-                                className="w-0.5 h-6 bg-primary"
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ duration: 1, repeat: Infinity }}
-                              />
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
+            <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium flex items-center gap-2 text-gray-700">
+                    <User className="w-3.5 h-3.5 text-emerald-500" />
+                    Nome completo *
+                  </label>
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Digite seu nome"
+                    className="bg-gray-50 border-gray-200 h-10 text-sm"
+                  />
+                </div>
 
-                      <NumericKeypad
-                        value={matricula}
-                        onChange={setMatricula}
-                        onSubmit={handleMatriculaSubmit}
-                        maxLength={6}
-                        autoSubmit={true}
-                      />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium flex items-center gap-2 text-gray-700">
+                    <Mail className="w-3.5 h-3.5 text-emerald-500" />
+                    Email *
+                  </label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="bg-gray-50 border-gray-200 h-10 text-sm"
+                  />
+                </div>
 
-                      {error && (
-                        <motion.p
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="text-destructive text-sm text-center mt-4 flex items-center justify-center gap-2"
-                        >
-                          <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                          {error}
-                        </motion.p>
-                      )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium flex items-center gap-2 text-gray-700">
+                    <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                    Número de telefone
+                  </label>
+                  <Input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    className="bg-gray-50 border-gray-200 h-10 text-sm"
+                    maxLength={15}
+                  />
+                </div>
+              </div>
 
-                      {isLoading && (
-                        <div className="flex justify-center mt-4">
-                          <motion.div 
-                            className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          />
-                        </div>
-                      )}
+              {/* Saldo Débito */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                  <Wallet className="w-4 h-4 text-emerald-500" />
+                  Saldo débito (conta)
+                </label>
+                <Input
+                  type="number"
+                  value={initialBalance}
+                  onChange={(e) => setInitialBalance(e.target.value)}
+                  placeholder="R$ 0,00"
+                  className="bg-gray-50 border-gray-200"
+                />
+              </div>
 
-                      {/* Biometric Login Button */}
-                      {biometricAvailable && biometricEnabled && (
-                        <div className="mt-4">
-                          <button
-                            onClick={handleBiometricLogin}
-                            disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
-                          >
-                            <Fingerprint className="w-5 h-5" />
-                            Entrar com biometria
-                          </button>
-                          <p className="text-xs text-muted-foreground text-center mt-2">
-                            Use sua digital ou Face ID
-                          </p>
-                        </div>
-                      )}
+              {/* Pergunta Cartão de Crédito */}
+              <div className="space-y-3 pt-2 border-t border-gray-200">
+                <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                  <CreditCard className="w-4 h-4 text-blue-500" />
+                  Você tem cartão de crédito?
+                </label>
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant={hasCreditCard === true ? "default" : "outline"}
+                    className={`flex-1 ${hasCreditCard === true ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
+                    onClick={() => setHasCreditCard(true)}
+                  >
+                    Sim
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={hasCreditCard === false ? "default" : "outline"}
+                    className={`flex-1 ${hasCreditCard === false ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
+                    onClick={() => setHasCreditCard(false)}
+                  >
+                    Não
+                  </Button>
+                </div>
+              </div>
 
-                      {/* Action buttons with tech style */}
-                      <div className="mt-6 pt-4 border-t border-border/50 space-y-3">
-                        <button
-                          onClick={() => navigate('/subscribe')}
-                          className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
-                        >
-                          <CreditCard className="w-5 h-5" />
-                          Assine agora
-                        </button>
-                        <button
-                          onClick={() => navigate('/subscribe?trial=true')}
-                          className="group w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500 transition-all text-emerald-400 font-medium"
-                        >
-                          <Calendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                          Teste grátis por 7 dias
-                        </button>
-                      </div>
-                      
-                      {/* Install App Button */}
-                      <InstallAppButton />
-                    </GlassCard>
+              {/* Campos condicionais Cartão de Crédito */}
+              {hasCreditCard === true && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <CreditCard className="w-4 h-4 text-blue-500" />
+                      Limite total do cartão
+                    </label>
+                    <Input
+                      type="number"
+                      value={creditLimit}
+                      onChange={(e) => setCreditLimit(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="bg-gray-50 border-gray-200"
+                    />
                   </div>
-                </motion.div>
-              )}
 
-              {step === 'register' && (
-                <motion.div
-                  key="register"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-sm max-h-[60dvh] overflow-y-auto pr-2 custom-scrollbar pb-4"
-                >
-                  <GlassCard className="p-6">
-                    <h2 className="text-xl font-semibold text-center mb-1">
-                      Criar conta
-                    </h2>
-                    <p className="text-muted-foreground text-xs text-center mb-6">
-                      Complete seu cadastro para continuar
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <Wallet className="w-4 h-4 text-emerald-500" />
+                      Valor disponível atual
+                    </label>
+                    <Input
+                      type="number"
+                      value={creditAvailable}
+                      onChange={(e) => setCreditAvailable(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Quanto você tem disponível no cartão agora
                     </p>
+                  </div>
 
-                    <div className="space-y-4">
-                      {/* Campos do formulário com animações simplificadas ou removidas para performance */}
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium flex items-center gap-2">
-                            <User className="w-3.5 h-3.5 text-primary" />
-                            Nome completo *
-                          </label>
-                          <Input
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder="Digite seu nome"
-                            className="bg-muted/30 border-border h-10 text-sm"
-                            onFocus={(e) => {
-                              setTimeout(() => {
-                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 300);
-                            }}
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium flex items-center gap-2">
-                            <Mail className="w-3.5 h-3.5 text-primary" />
-                            Email *
-                          </label>
-                          <Input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="seu@email.com"
-                            className="bg-muted/30 border-border h-10 text-sm"
-                            onFocus={(e) => {
-                              setTimeout(() => {
-                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 300);
-                            }}
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium flex items-center gap-2">
-                            <Phone className="w-3.5 h-3.5 text-primary" />
-                            Número de telefone
-                          </label>
-                          <Input
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => setPhone(formatPhone(e.target.value))}
-                            placeholder="(00) 00000-0000"
-                            className="bg-muted/30 border-border h-10 text-sm"
-                            maxLength={15}
-                            onFocus={(e) => {
-                              setTimeout(() => {
-                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 300);
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Saldo Débito */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                          <Wallet className="w-4 h-4 text-emerald-500" />
-                          Saldo débito (conta)
-                        </label>
-                        <Input
-                          type="number"
-                          value={initialBalance}
-                          onChange={(e) => setInitialBalance(e.target.value)}
-                          placeholder="R$ 0,00"
-                          className="bg-muted/50 border-border"
-                        />
-                      </div>
-
-                      {/* Pergunta Cartão de Crédito */}
-                      <div className="space-y-3 pt-2 border-t border-border">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                          <CreditCard className="w-4 h-4 text-secondary" />
-                          Você tem cartão de crédito?
-                        </label>
-                        <div className="flex gap-3">
-                          <Button
-                            type="button"
-                            variant={hasCreditCard === true ? "default" : "outline"}
-                            className={`flex-1 ${hasCreditCard === true ? 'bg-gradient-primary' : ''}`}
-                            onClick={() => setHasCreditCard(true)}
-                          >
-                            Sim
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={hasCreditCard === false ? "default" : "outline"}
-                            className={`flex-1 ${hasCreditCard === false ? 'bg-gradient-primary' : ''}`}
-                            onClick={() => setHasCreditCard(false)}
-                          >
-                            Não
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Campos condicionais Cartão de Crédito */}
-                      {hasCreditCard === true && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-4"
-                        >
-                          {/* Limite Crédito */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <CreditCard className="w-4 h-4 text-secondary" />
-                              Limite total do cartão
-                            </label>
-                            <Input
-                              type="number"
-                              value={creditLimit}
-                              onChange={(e) => setCreditLimit(e.target.value)}
-                              placeholder="R$ 0,00"
-                              className="bg-muted/50 border-border"
-                            />
-                          </div>
-
-                          {/* Valor Disponível */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <Wallet className="w-4 h-4 text-emerald-500" />
-                              Valor disponível atual
-                            </label>
-                            <Input
-                              type="number"
-                              value={creditAvailable}
-                              onChange={(e) => setCreditAvailable(e.target.value)}
-                              placeholder="R$ 0,00"
-                              className="bg-muted/50 border-border"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Quanto você tem disponível no cartão agora
-                            </p>
-                          </div>
-
-                          {/* Dia Vencimento Crédito */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-warning" />
-                              Dia de vencimento da fatura
-                            </label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={31}
-                              value={creditDueDay}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                if (!e.target.value || (val >= 1 && val <= 31)) {
-                                  setCreditDueDay(e.target.value);
-                                }
-                              }}
-                              placeholder="Ex: 15"
-                              className="bg-muted/50 border-border"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              No vencimento, o limite será restaurado para o valor total
-                            </p>
-                          </div>
-                        </motion.div>
-                      )}
-
-                      {/* Pergunta CLT */}
-                      <div className="space-y-3 pt-2 border-t border-border">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                          <Briefcase className="w-4 h-4 text-primary" />
-                          Você é CLT?
-                        </label>
-                        <div className="flex gap-3">
-                          <Button
-                            type="button"
-                            variant={isClt === true ? "default" : "outline"}
-                            className={`flex-1 ${isClt === true ? 'bg-gradient-primary' : ''}`}
-                            onClick={() => setIsClt(true)}
-                          >
-                            Sim
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={isClt === false ? "default" : "outline"}
-                            className={`flex-1 ${isClt === false ? 'bg-gradient-primary' : ''}`}
-                            onClick={() => setIsClt(false)}
-                          >
-                            Não
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Campos condicionais CLT */}
-                      {isClt === true && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-4"
-                        >
-                          {/* Valor do Salário */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <DollarSign className="w-4 h-4 text-emerald-500" />
-                              Valor do salário
-                            </label>
-                            <Input
-                              type="number"
-                              value={salaryAmount}
-                              onChange={(e) => setSalaryAmount(e.target.value)}
-                              placeholder="R$ 0,00"
-                              className="bg-muted/50 border-border"
-                            />
-                          </div>
-
-                          {/* Dia do Pagamento do Salário */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <CalendarDays className="w-4 h-4 text-secondary" />
-                              Dia do pagamento do salário
-                            </label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={31}
-                              value={salaryDay}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                if (!e.target.value || (val >= 1 && val <= 31)) {
-                                  setSalaryDay(e.target.value);
-                                }
-                              }}
-                              placeholder="Ex: 5"
-                              className="bg-muted/50 border-border"
-                            />
-                          </div>
-
-                          {/* Valor do Adiantamento */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <DollarSign className="w-4 h-4 text-blue-500" />
-                              Valor do adiantamento
-                            </label>
-                            <Input
-                              type="number"
-                              value={advanceAmount}
-                              onChange={(e) => setAdvanceAmount(e.target.value)}
-                              placeholder="R$ 0,00 (opcional)"
-                              className="bg-muted/50 border-border"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Deixe em branco se não recebe adiantamento
-                            </p>
-                          </div>
-
-                          {/* Dia do Adiantamento */}
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                              <CalendarDays className="w-4 h-4 text-blue-500" />
-                              Dia do adiantamento
-                            </label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={31}
-                              value={advanceDay}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                if (!e.target.value || (val >= 1 && val <= 31)) {
-                                  setAdvanceDay(e.target.value);
-                                }
-                              }}
-                              placeholder="Ex: 20"
-                              className="bg-muted/50 border-border"
-                            />
-                          </div>
-                        </motion.div>
-                      )}
-
-                      <Button
-                        onClick={handleRegister}
-                        disabled={isLoading}
-                        className="w-full bg-gradient-primary hover:opacity-90 glow-primary"
-                      >
-                        {isLoading ? (
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          'Criar conta'
-                        )}
-                      </Button>
-
-                      <button
-                        onClick={() => {
-                          setStep('matricula');
-                          setError('');
-                        }}
-                        className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Já tenho conta
-                      </button>
-                    </div>
-
-                    {error && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-destructive text-sm text-center mt-4"
-                      >
-                        {error}
-                      </motion.p>
-                    )}
-                  </GlassCard>
-                </motion.div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <Calendar className="w-4 h-4 text-amber-500" />
+                      Dia de vencimento da fatura
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={creditDueDay}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!e.target.value || (val >= 1 && val <= 31)) {
+                          setCreditDueDay(e.target.value);
+                        }
+                      }}
+                      placeholder="Ex: 15"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500">
+                      No vencimento, o limite será restaurado para o valor total
+                    </p>
+                  </div>
+                </div>
               )}
 
-              {step === 'success' && (
-                <motion.div
-                  key="success"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="w-full max-w-sm"
-                >
-                  <GlassCard className="p-8 text-center">
-                    {/* Pending Analysis Animation */}
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', delay: 0.2 }}
-                      className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center"
-                    >
-                      <Shield className="w-10 h-10 text-white" />
-                    </motion.div>
+              {/* Pergunta CLT */}
+              <div className="space-y-3 pt-2 border-t border-gray-200">
+                <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                  <Briefcase className="w-4 h-4 text-emerald-500" />
+                  Você é CLT?
+                </label>
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant={isClt === true ? "default" : "outline"}
+                    className={`flex-1 ${isClt === true ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
+                    onClick={() => setIsClt(true)}
+                  >
+                    Sim
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={isClt === false ? "default" : "outline"}
+                    className={`flex-1 ${isClt === false ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
+                    onClick={() => setIsClt(false)}
+                  >
+                    Não
+                  </Button>
+                </div>
+              </div>
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                    >
-                      <h2 className="text-xl font-bold mb-2">
-                        Cadastro enviado para análise
-                      </h2>
-                      <p className="text-muted-foreground text-sm mb-6">
-                        Seu cadastro foi recebido e está aguardando aprovação do administrador.<br />
-                        Assim que for aprovado, você poderá acessar todas as funcionalidades do INOVAFINANCE.
-                      </p>
-                    </motion.div>
+              {/* Campos condicionais CLT */}
+              {isClt === true && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <DollarSign className="w-4 h-4 text-emerald-500" />
+                      Valor do salário
+                    </label>
+                    <Input
+                      type="number"
+                      value={salaryAmount}
+                      onChange={(e) => setSalaryAmount(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                  </div>
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.6 }}
-                      className="mb-6"
-                    >
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Sua matrícula é:
-                      </p>
-                      <div className="flex justify-center gap-2">
-                        {generatedMatricula.split('').map((digit, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ scale: 0, rotate: -180 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ delay: 0.8 + i * 0.1, type: 'spring' }}
-                            className="w-12 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg"
-                          >
-                            {digit}
-                          </motion.div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        Guarde sua matrícula. Você usará ela para acessar sua conta após aprovação.
-                      </p>
-                    </motion.div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <CalendarDays className="w-4 h-4 text-blue-500" />
+                      Dia do pagamento do salário
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={salaryDay}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!e.target.value || (val >= 1 && val <= 31)) {
+                          setSalaryDay(e.target.value);
+                        }
+                      }}
+                      placeholder="Ex: 5"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                  </div>
 
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 1.4 }}
-                    >
-                      <Button
-                        onClick={handleGoToLogin}
-                        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-90"
-                      >
-                        Entendi
-                      </Button>
-                    </motion.div>
-                  </GlassCard>
-                </motion.div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <DollarSign className="w-4 h-4 text-blue-500" />
+                      Valor do adiantamento
+                    </label>
+                    <Input
+                      type="number"
+                      value={advanceAmount}
+                      onChange={(e) => setAdvanceAmount(e.target.value)}
+                      placeholder="R$ 0,00 (opcional)"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Deixe em branco se não recebe adiantamento
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
+                      <CalendarDays className="w-4 h-4 text-blue-500" />
+                      Dia do adiantamento
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={advanceDay}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!e.target.value || (val >= 1 && val <= 31)) {
+                          setAdvanceDay(e.target.value);
+                        }
+                      }}
+                      placeholder="Ex: 20"
+                      className="bg-gray-50 border-gray-200"
+                    />
+                  </div>
+                </div>
               )}
 
-              {/* Pending Status Screen - when user tries to login */}
-              {step === 'pending' && (
-                <motion.div
-                  key="pending"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="w-full max-w-sm"
-                >
-                  <GlassCard className="p-8 text-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', delay: 0.2 }}
-                      className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center"
-                    >
-                      <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
-                    </motion.div>
+              <Button
+                onClick={handleRegister}
+                disabled={isLoading}
+                className="w-full bg-emerald-500 hover:bg-emerald-600"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Criar conta'
+                )}
+              </Button>
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                    >
-                      <h2 className="text-xl font-bold mb-2">
-                        ⏳ Conta em análise
-                      </h2>
-                      <p className="text-muted-foreground text-sm mb-6">
-                        Seu cadastro ainda não foi aprovado pelo administrador.<br />
-                        Aguarde a aprovação para acessar sua conta.
-                      </p>
-                    </motion.div>
+              <button
+                onClick={() => {
+                  setStep('matricula');
+                  setError('');
+                }}
+                className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Já tenho conta
+              </button>
+            </div>
 
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.6 }}
-                    >
-                      <Button
-                        onClick={() => setStep('matricula')}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        Sair
-                      </Button>
-                    </motion.div>
-                  </GlassCard>
-                </motion.div>
-              )}
+            {error && (
+              <p className="text-red-600 text-sm text-center mt-4">{error}</p>
+            )}
+          </GlassCard>
+        </div>
+      )}
 
-              {/* Rejected Status Screen */}
-              {step === 'rejected' && (
-                <motion.div
-                  key="rejected"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="w-full max-w-sm"
-                >
-                  <GlassCard className="p-8 text-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', delay: 0.2 }}
-                      className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center"
-                    >
-                      <UserPlus className="w-10 h-10 text-white" />
-                    </motion.div>
+      {step === 'success' && (
+        <div className="w-full max-w-sm">
+          <GlassCard className="p-8 text-center bg-white shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <Shield className="w-10 h-10 text-white" />
+            </div>
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                    >
-                      <h2 className="text-xl font-bold mb-2 text-red-400">
-                        ❌ Cadastro não aprovado
-                      </h2>
-                      <p className="text-muted-foreground text-sm mb-6">
-                        Seu cadastro foi analisado e não foi aprovado.<br />
-                        Entre em contato com o suporte para mais informações.
-                      </p>
-                    </motion.div>
+            <h2 className="text-xl font-bold mb-2 text-gray-900">
+              Cadastro enviado para análise
+            </h2>
+            <p className="text-gray-600 text-sm mb-6">
+              Seu cadastro foi recebido e está aguardando aprovação do administrador.<br />
+              Assim que for aprovado, você poderá acessar todas as funcionalidades do INOVAFINANCE.
+            </p>
 
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.6 }}
-                    >
-                      <Button
-                        onClick={() => setStep('matricula')}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        Voltar
-                      </Button>
-                    </motion.div>
-                  </GlassCard>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-2">Sua matrícula é:</p>
+              <div className="flex justify-center gap-2">
+                {generatedMatricula.split('').map((digit, i) => (
+                  <div
+                    key={i}
+                    className="w-12 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg"
+                  >
+                    {digit}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Guarde sua matrícula. Você usará ela para acessar sua conta após aprovação.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleGoToLogin}
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-90"
+            >
+              Entendi
+            </Button>
+          </GlassCard>
+        </div>
+      )}
+
+      {step === 'pending' && (
+        <div className="w-full max-w-sm">
+          <GlassCard className="p-8 text-center bg-white shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+
+            <h2 className="text-xl font-bold mb-2 text-gray-900">⏳ Conta em análise</h2>
+            <p className="text-gray-600 text-sm mb-6">
+              Seu cadastro ainda não foi aprovado pelo administrador.<br />
+              Aguarde a aprovação para acessar sua conta.
+            </p>
+
+            <Button onClick={() => setStep('matricula')} variant="outline" className="w-full">
+              Sair
+            </Button>
+          </GlassCard>
+        </div>
+      )}
+
+      {step === 'rejected' && (
+        <div className="w-full max-w-sm">
+          <GlassCard className="p-8 text-center bg-white shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
+              <UserPlus className="w-10 h-10 text-white" />
+            </div>
+
+            <h2 className="text-xl font-bold mb-2 text-red-600">❌ Cadastro não aprovado</h2>
+            <p className="text-gray-600 text-sm mb-6">
+              Seu cadastro foi analisado e não foi aprovado.<br />
+              Entre em contato com o suporte para mais informações.
+            </p>
+
+            <Button onClick={() => setStep('matricula')} variant="outline" className="w-full">
+              Voltar
+            </Button>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
