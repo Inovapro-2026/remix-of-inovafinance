@@ -35,6 +35,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { parseAgendaCommand, isAgendaOrRoutineCommand, formatParsedEventForDisplay, type ParsedAgendaEvent } from '@/services/unifiedAgendaParser';
+import { ConfirmAgendaPopout } from '@/components/ConfirmAgendaPopout';
+import { saveUnifiedRoutine, formatSuccessMessage } from '@/services/saveUnifiedRoutine';
 
 // Web Speech API types
 interface ISpeechRecognitionEvent extends Event {
@@ -83,6 +86,12 @@ export default function RotinaInteligente() {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Unified parser popout state
+  const [showConfirmPopout, setShowConfirmPopout] = useState(false);
+  const [parsedEvent, setParsedEvent] = useState<ParsedAgendaEvent | null>(null);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
 
   // Initialize notifications and load history
   useEffect(() => {
@@ -145,6 +154,32 @@ export default function RotinaInteligente() {
     if (!messageText || !user || isLoading) return;
 
     setInputValue('');
+
+    // Check if this is an agenda/routine creation command
+    if (isAgendaOrRoutineCommand(messageText)) {
+      console.log('[INOVAPRO AI] Detected agenda/routine command, opening confirmation popout');
+      
+      // Parse the command using our unified parser
+      const parsed = parseAgendaCommand(messageText, 'chat');
+      console.log('[INOVAPRO AI] Parsed result:', parsed);
+      
+      // Create user message for display
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: messageText,
+        created_at: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      setPendingUserMessage(userMessage);
+      
+      // Show confirmation popout with pre-filled data
+      setParsedEvent(parsed);
+      setShowConfirmPopout(true);
+      return;
+    }
+
+    // Normal chat flow for non-creation messages
     setIsLoading(true);
 
     // Optimistically add user message
@@ -170,7 +205,7 @@ export default function RotinaInteligente() {
         content: m.content
       }));
 
-      // 3. Call Routine AI Edge Function (supports automatic routine parsing + saving)
+      // 3. Call Routine AI Edge Function
       console.log('[INOVAPRO AI] Calling routine-ai-chat edge function...');
 
       const { data: edgeData, error: edgeError } = await supabase.functions.invoke('routine-ai-chat', {
@@ -202,6 +237,76 @@ export default function RotinaInteligente() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle popout confirmation - save to database
+  const handlePopoutConfirm = async (event: ParsedAgendaEvent) => {
+    if (!user) return;
+    
+    setIsSavingEvent(true);
+    
+    try {
+      const result = await saveUnifiedRoutine(event, user.userId);
+      
+      if (result.success) {
+        // Create AI response message
+        const successMsg = formatSuccessMessage(event);
+        
+        const aiMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: successMsg,
+          created_at: new Date().toISOString()
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Save messages to DB
+        if (pendingUserMessage) {
+          await supabase.from('routine_chat_messages').insert({
+            user_matricula: user.userId,
+            role: 'user',
+            content: pendingUserMessage.content
+          });
+        }
+        
+        await supabase.from('routine_chat_messages').insert({
+          user_matricula: user.userId,
+          role: 'assistant',
+          content: successMsg
+        });
+        
+        toast.success('Salvo com sucesso!');
+        
+        if (isVoiceActive) {
+          isaSpeak(`${event.tipo === 'rotina' ? 'Rotina' : 'Lembrete'} ${event.titulo} adicionado com sucesso.`, 'routine');
+        }
+        
+        // Refresh notifications
+        await routineNotificationService.scheduleRoutineAlerts(user.userId);
+      } else {
+        toast.error(result.error || 'Erro ao salvar');
+      }
+    } catch (err) {
+      console.error('Error saving event:', err);
+      toast.error('Erro ao salvar');
+    } finally {
+      setIsSavingEvent(false);
+      setShowConfirmPopout(false);
+      setParsedEvent(null);
+      setPendingUserMessage(null);
+    }
+  };
+
+  // Handle popout cancel
+  const handlePopoutCancel = () => {
+    setShowConfirmPopout(false);
+    setParsedEvent(null);
+    // Remove the pending user message if cancelled
+    if (pendingUserMessage) {
+      setMessages(prev => prev.filter(m => m.id !== pendingUserMessage.id));
+    }
+    setPendingUserMessage(null);
   };
 
   const handleAIResponse = async (response: string) => {
@@ -556,6 +661,15 @@ export default function RotinaInteligente() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Confirmation Popout for Agenda/Routine creation */}
+      <ConfirmAgendaPopout
+        isOpen={showConfirmPopout}
+        parsedEvent={parsedEvent}
+        onConfirm={handlePopoutConfirm}
+        onCancel={handlePopoutCancel}
+        isLoading={isSavingEvent}
+      />
     </div>
   );
 }
