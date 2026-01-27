@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { isaSpeak, timeToSpeech } from '@/services/isaVoiceService';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +80,7 @@ const WHATSAPP_API_URL = (() => {
 })();
 
 type ViewMode = 'hoje' | 'todas';
+type PanelMode = 'rotinas' | 'agenda';
 
 export default function Rotinas() {
   const { user } = useAuth();
@@ -92,8 +94,19 @@ export default function Rotinas() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('hoje');
+  const [panelMode, setPanelMode] = useState<PanelMode>('rotinas');
+  const [agendaViewMode, setAgendaViewMode] = useState<ViewMode>('hoje');
   const [hasWhatsAppEnabled, setHasWhatsAppEnabled] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  type UnifiedRotina = Rotina & {
+    tipo?: string | null;
+    data?: string | null;
+    recorrente?: boolean | null;
+    hora_fim?: string | null;
+    categoria?: string | null;
+    prioridade?: string | null;
+  };
 
   // Popout state
   const [currentPopout, setCurrentPopout] = useState<QueuedRoutine | null>(null);
@@ -280,6 +293,30 @@ export default function Rotinas() {
   const totalCount = todayRotinas.length;
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+  const todayDate = getTodayDate();
+  const agendaItems = (allRotinas as UnifiedRotina[])
+    .filter(r => (r.recorrente ?? true) === false || (r.tipo && r.tipo !== 'rotina'))
+    .sort((a, b) => {
+      const da = a.data || '';
+      const db = b.data || '';
+      if (da !== db) return da.localeCompare(db);
+      return (a.hora || '').localeCompare(b.hora || '');
+    });
+
+  const agendaItemsHoje = agendaItems.filter(r => (r.data || '') === todayDate);
+
+  const formatAgendaDate = (isoDate: string) => {
+    try {
+      return new Date(`${isoDate}T00:00:00`).toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+      });
+    } catch {
+      return isoDate;
+    }
+  };
+
   // Get execution status for a routine
   const getExecutionStatus = (rotinaId: string): 'pendente' | 'em_andamento' | 'feito' | 'nao_feito' => {
     if (isRotinaCompletedToday(rotinaId, completions)) return 'feito';
@@ -408,29 +445,61 @@ export default function Rotinas() {
               {completedCount}/{totalCount} completas hoje
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant={viewMode === 'hoje' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('hoje')}
-            >
-              Hoje
-            </Button>
-            <Button
-              variant={viewMode === 'todas' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('todas')}
-            >
-              Todas
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowAddDialog(true)}
-            >
-              <Plus className="w-5 h-5" />
-            </Button>
+          <div className="flex items-center gap-2">
+            {panelMode === 'rotinas' && (
+              <>
+                <Button
+                  variant={viewMode === 'hoje' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('hoje')}
+                >
+                  Hoje
+                </Button>
+                <Button
+                  variant={viewMode === 'todas' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('todas')}
+                >
+                  Todas
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAddDialog(true)}
+                >
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </>
+            )}
+
+            {panelMode === 'agenda' && (
+              <>
+                <Button
+                  variant={agendaViewMode === 'hoje' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setAgendaViewMode('hoje')}
+                >
+                  Hoje
+                </Button>
+                <Button
+                  variant={agendaViewMode === 'todas' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setAgendaViewMode('todas')}
+                >
+                  Todas
+                </Button>
+              </>
+            )}
           </div>
+        </div>
+
+        <div className="mt-3">
+          <Tabs value={panelMode} onValueChange={(v) => setPanelMode(v as PanelMode)}>
+            <TabsList className="w-full">
+              <TabsTrigger value="rotinas" className="flex-1">Rotinas</TabsTrigger>
+              <TabsTrigger value="agenda" className="flex-1">Agenda</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {viewMode === 'hoje' && totalCount > 0 && (
@@ -458,56 +527,112 @@ export default function Rotinas() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
-        {/* Today's View */}
-        {viewMode === 'hoje' && (
-          <AnimatePresence mode="popLayout">
-            {todayRotinas.map((rotina, index) => (
-              <RoutineCard
-                key={rotina.id}
-                rotina={rotina as any}
-                status={getExecutionStatus(rotina.id)}
-                onComplete={() => handleComplete(rotina.id)}
-                onDelete={() => handleDeleteClick(rotina)}
-                delay={index}
-              />
-            ))}
-          </AnimatePresence>
-        )}
+        <Tabs value={panelMode} onValueChange={(v) => setPanelMode(v as PanelMode)}>
+          <TabsContent value="rotinas" className="mt-0">
+            {/* Today's View */}
+            {viewMode === 'hoje' && (
+              <AnimatePresence mode="popLayout">
+                {todayRotinas.map((rotina, index) => (
+                  <RoutineCard
+                    key={rotina.id}
+                    rotina={rotina as any}
+                    status={getExecutionStatus(rotina.id)}
+                    onComplete={() => handleComplete(rotina.id)}
+                    onDelete={() => handleDeleteClick(rotina)}
+                    delay={index}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
 
-        {/* All Routines View */}
-        {viewMode === 'todas' && (
-          <AnimatePresence mode="popLayout">
-            {allRotinas.map((rotina, index) => (
-              <RoutineCard
-                key={rotina.id}
-                rotina={rotina as any}
-                status="pendente"
-                showDays
-                onToggleActive={() => toggleRotinaActive(rotina.id, !rotina.ativo).then(loadRotinas)}
-                onDelete={() => handleDeleteClick(rotina)}
-                delay={index}
-              />
-            ))}
-          </AnimatePresence>
-        )}
+            {/* All Routines View */}
+            {viewMode === 'todas' && (
+              <AnimatePresence mode="popLayout">
+                {(allRotinas as UnifiedRotina[])
+                  .filter(r => (r.recorrente ?? true) === true && (r.tipo ?? 'rotina') === 'rotina')
+                  .map((rotina, index) => (
+                    <RoutineCard
+                      key={rotina.id}
+                      rotina={rotina as any}
+                      status="pendente"
+                      showDays
+                      onToggleActive={() => toggleRotinaActive(rotina.id, !rotina.ativo).then(loadRotinas)}
+                      onDelete={() => handleDeleteClick(rotina)}
+                      delay={index}
+                    />
+                  ))}
+              </AnimatePresence>
+            )}
 
-        {/* Empty states */}
-        {viewMode === 'hoje' && todayRotinas.length === 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-            <Calendar className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">Nenhuma rotina para hoje</p>
-            <Button onClick={() => setShowAddDialog(true)} className="mt-4">
-              <Plus className="w-4 h-4 mr-2" /> Criar Rotina
-            </Button>
-          </motion.div>
-        )}
+            {/* Empty states */}
+            {viewMode === 'hoje' && todayRotinas.length === 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+                <Calendar className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">Nenhuma rotina para hoje</p>
+                <Button onClick={() => setShowAddDialog(true)} className="mt-4">
+                  <Plus className="w-4 h-4 mr-2" /> Criar Rotina
+                </Button>
+              </motion.div>
+            )}
 
-        {viewMode === 'todas' && allRotinas.length === 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-            <RefreshCw className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">Nenhuma rotina criada</p>
-          </motion.div>
-        )}
+            {viewMode === 'todas' && (
+              (allRotinas as UnifiedRotina[]).filter(r => (r.recorrente ?? true) === true && (r.tipo ?? 'rotina') === 'rotina').length === 0
+            ) && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+                <RefreshCw className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">Nenhuma rotina criada</p>
+              </motion.div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="agenda" className="mt-0">
+            <AnimatePresence mode="popLayout">
+              {(agendaViewMode === 'hoje' ? agendaItemsHoje : agendaItems).map((item, index) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="rounded-lg border border-border bg-card/50 backdrop-blur-sm p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                          {(item.tipo || 'agenda').toString()}
+                        </span>
+                        {item.data && (
+                          <span className="text-xs text-muted-foreground">{formatAgendaDate(item.data)}</span>
+                        )}
+                      </div>
+                      <p className="mt-1 font-medium truncate">{item.titulo}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {item.hora}{item.hora_fim ? `–${item.hora_fim}` : ''}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDeleteClick(item as any)}
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {(agendaViewMode === 'hoje' ? agendaItemsHoje.length === 0 : agendaItems.length === 0) && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+                <Calendar className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">Nenhum item de agenda salvo</p>
+              </motion.div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Add Dialog */}
