@@ -1,11 +1,12 @@
-import { useState, useEffect, memo, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, memo, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Wallet, Mail, Phone, CreditCard, Calendar, CheckCircle, Sparkles, Briefcase, DollarSign, CalendarDays, Shield, UserPlus } from 'lucide-react';
+import { Shield, User, Wallet, Mail, Phone, CreditCard, Calendar, UserPlus, CheckCircle, Sparkles, Fingerprint, Briefcase, DollarSign, CalendarDays, Download } from 'lucide-react';
+import { NumericKeypad } from '@/components/NumericKeypad';
+import { InstallAppButton } from '@/components/InstallAppButton';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
-import { EmailLoginForm } from '@/components/EmailLoginForm';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -126,9 +127,18 @@ export default function Login() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isLoading: authLoading, login, loginWithEmail } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { login, user, isLoading: authLoading } = useAuth();
 
-  // Play login audio only once per session
+  // ✅ Pre-fill matricula from URL query parameter (from cadastro-finalizado redirect)
+  useEffect(() => {
+    const matriculaParam = searchParams.get('matricula');
+    if (matriculaParam && matriculaParam.length === 6 && /^\d{6}$/.test(matriculaParam)) {
+      setMatricula(matriculaParam);
+    }
+  }, [searchParams]);
+
+  // Play login audio only once per session and only on /login route when NOT authenticated
   const loginAudioPlayedRef = useRef(false);
   const matriculaInputRef = useRef<HTMLInputElement | null>(null);
   
@@ -582,15 +592,158 @@ export default function Login() {
               </motion.p>
             </motion.div>
 
-            {/* Login Form - Email/Password */}
+            {/* Login Form - Tech style */}
             <AnimatePresence mode="wait">
               {step === 'matricula' && (
-                <EmailLoginForm
-                  biometricAvailable={biometricAvailable}
-                  biometricEnabled={biometricEnabled}
-                  onBiometricLogin={handleBiometricLogin}
-                  isLoading={isLoading}
-                />
+                <motion.div
+                  key="matricula"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full max-w-sm"
+                >
+                  <div className="relative">
+                    {/* Tech border effect */}
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-primary/50 via-emerald-500/50 to-primary/50 rounded-2xl opacity-50" />
+                    
+                    <GlassCard className="relative p-6 backdrop-blur-xl bg-card/90 border-0">
+                      {/* Header with icon */}
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Shield className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-semibold">
+                          Acesso Seguro
+                        </h2>
+                      </div>
+                      <p className="text-muted-foreground text-sm text-center mb-6">
+                        Digite sua matrícula de 6 dígitos
+                      </p>
+
+                      {/* PIN Display with tech styling */}
+                      <div
+                        className="relative flex justify-center gap-2 mb-6"
+                        onClick={() => matriculaInputRef.current?.focus()}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') matriculaInputRef.current?.focus();
+                        }}
+                      >
+                        {/* Input invisível para ativar o teclado numérico no mobile */}
+                        <input
+                          ref={matriculaInputRef}
+                          value={matricula}
+                          onChange={(e) => {
+                            const onlyNumbers = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            setMatricula(onlyNumbers);
+                          }}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          autoComplete="one-time-code"
+                          aria-label="Matrícula"
+                          className="absolute inset-0 opacity-0"
+                        />
+
+                        {[...Array(6)].map((_, i) => (
+                          <motion.div
+                            key={i}
+                            className={`relative w-11 h-14 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 ${
+                              matricula[i]
+                                ? 'bg-primary/20 border-2 border-primary shadow-lg shadow-primary/20'
+                                : 'bg-muted/30 border-2 border-border/50'
+                            }`}
+                            animate={matricula[i] ? { scale: [1, 1.08, 1] } : {}}
+                            transition={{ duration: 0.15 }}
+                          >
+                            {matricula[i] && (
+                              <motion.span
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className="text-primary font-mono"
+                              >
+                                {matricula[i]}
+                              </motion.span>
+                            )}
+                            {!matricula[i] && i === matricula.length && (
+                              <motion.div
+                                className="w-0.5 h-6 bg-primary"
+                                animate={{ opacity: [0, 1, 0] }}
+                                transition={{ duration: 1, repeat: Infinity }}
+                              />
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      <NumericKeypad
+                        value={matricula}
+                        onChange={setMatricula}
+                        onSubmit={handleMatriculaSubmit}
+                        maxLength={6}
+                        autoSubmit={true}
+                      />
+
+                      {error && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-destructive text-sm text-center mt-4 flex items-center justify-center gap-2"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                          {error}
+                        </motion.p>
+                      )}
+
+                      {isLoading && (
+                        <div className="flex justify-center mt-4">
+                          <motion.div 
+                            className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Biometric Login Button */}
+                      {biometricAvailable && biometricEnabled && (
+                        <div className="mt-4">
+                          <button
+                            onClick={handleBiometricLogin}
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
+                          >
+                            <Fingerprint className="w-5 h-5" />
+                            Entrar com biometria
+                          </button>
+                          <p className="text-xs text-muted-foreground text-center mt-2">
+                            Use sua digital ou Face ID
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Action buttons with tech style */}
+                      <div className="mt-6 pt-4 border-t border-border/50 space-y-3">
+                        <button
+                          onClick={() => navigate('/subscribe')}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all text-primary-foreground font-medium shadow-lg shadow-primary/20"
+                        >
+                          <CreditCard className="w-5 h-5" />
+                          Assine agora
+                        </button>
+                        <button
+                          onClick={() => navigate('/subscribe?trial=true')}
+                          className="group w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500 transition-all text-emerald-400 font-medium"
+                        >
+                          <Calendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                          Teste grátis por 7 dias
+                        </button>
+                      </div>
+                      
+                      {/* Install App Button */}
+                      <InstallAppButton />
+                    </GlassCard>
+                  </div>
+                </motion.div>
               )}
 
               {step === 'register' && (
