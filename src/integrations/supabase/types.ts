@@ -834,13 +834,17 @@ export type Database = {
           ativo: boolean | null
           categoria: string | null
           created_at: string
+          data: string | null
           descricao: string | null
           dias_semana: string[]
           hora: string
           hora_fim: string | null
           id: string
           notificacao_minutos: number | null
+          origem: string | null
           prioridade: string | null
+          recorrente: boolean | null
+          tipo: string | null
           titulo: string
           updated_at: string
           user_matricula: number
@@ -849,13 +853,17 @@ export type Database = {
           ativo?: boolean | null
           categoria?: string | null
           created_at?: string
+          data?: string | null
           descricao?: string | null
           dias_semana?: string[]
           hora: string
           hora_fim?: string | null
           id?: string
           notificacao_minutos?: number | null
+          origem?: string | null
           prioridade?: string | null
+          recorrente?: boolean | null
+          tipo?: string | null
           titulo: string
           updated_at?: string
           user_matricula: number
@@ -864,13 +872,17 @@ export type Database = {
           ativo?: boolean | null
           categoria?: string | null
           created_at?: string
+          data?: string | null
           descricao?: string | null
           dias_semana?: string[]
           hora?: string
           hora_fim?: string | null
           id?: string
           notificacao_minutos?: number | null
+          origem?: string | null
           prioridade?: string | null
+          recorrente?: boolean | null
+          tipo?: string | null
           titulo?: string
           updated_at?: string
           user_matricula?: number

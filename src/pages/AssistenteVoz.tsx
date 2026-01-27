@@ -6,15 +6,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { isaSpeak, inovaStop } from '@/services/isaVoiceService';
-import { addAgendaItem, formatTime, getTodayDate } from '@/lib/agendaDb';
+import { formatTime, getTodayDate, addAgendaItem, addRotina } from '@/lib/agendaDb';
 import { timeToSpeech } from '@/services/isaVoiceService';
-import { addRotina, DIAS_SEMANA_LABEL } from '@/lib/agendaDb';
+import { DIAS_SEMANA_LABEL } from '@/lib/agendaDb';
 import { requestNotificationPermission, hasNotificationPermission, sendNotification, getNotificationPermissionStatus } from '@/services/notificationService';
 import isaBackground from '@/assets/isa-background.jpg';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AgendaFormModal, AgendaFormData } from '@/components/AgendaFormModal';
 import { routineNotificationService } from '@/services/routineNotificationService';
+import { parseAgendaCommand, isAgendaOrRoutineCommand, type ParsedAgendaEvent } from '@/services/unifiedAgendaParser';
+import { ConfirmAgendaPopout } from '@/components/ConfirmAgendaPopout';
+import { saveUnifiedRoutine, formatSuccessMessage } from '@/services/saveUnifiedRoutine';
 
 
 // Sugestões rotativas para agenda/rotinas
@@ -124,6 +127,11 @@ export default function AssistenteVoz() {
     getNotificationPermissionStatus()
   );
   const recognitionRef = useRef<any>(null);
+
+  // Unified popout state
+  const [showConfirmPopout, setShowConfirmPopout] = useState(false);
+  const [parsedEvent, setParsedEvent] = useState<ParsedAgendaEvent | null>(null);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
 
   // Check notification permission on mount and focus
   useEffect(() => {
@@ -248,7 +256,7 @@ export default function AssistenteVoz() {
     return agendaKeywords.some(keyword => normalized.includes(keyword));
   };
 
-  // Process command - opens modal for user to confirm details
+  // Process command - opens UNIFIED popout with pre-filled data
   const processCommand = async (command: string) => {
     if (!user || !command.trim()) return;
 
@@ -271,15 +279,18 @@ export default function AssistenteVoz() {
         return;
       }
 
-      // Check if it's an agenda/reminder command
-      if (isAgendaCommand(command)) {
-        // Extract title and open modal
-        const title = extractTitleFromCommand(command);
-        setExtractedTitle(title);
-        setShowAgendaModal(true);
+      // Check if it's an agenda/reminder command using UNIFIED parser
+      if (isAgendaCommand(command) || isAgendaOrRoutineCommand(command)) {
+        // Use unified parser to extract all data
+        const parsed = parseAgendaCommand(command, 'voz');
+        console.log('[AssistenteVoz] Parsed command:', parsed);
+        
+        // Set parsed data and open UNIFIED popout (pre-filled!)
+        setParsedEvent(parsed);
+        setShowConfirmPopout(true);
 
         if (voiceEnabled) {
-          isaSpeak('Ok, complete os detalhes no formulário.');
+          isaSpeak(`Entendi: ${parsed.titulo} às ${parsed.hora}. Confirme os detalhes.`);
         }
         setStatusText('Toque para falar');
         setIsProcessing(false);
@@ -395,6 +406,51 @@ export default function AssistenteVoz() {
       console.error('Error saving agenda item:', err);
       toast.error('Erro ao salvar');
     }
+  };
+
+  // Handle unified popout confirmation - save using unified routine service
+  const handlePopoutConfirm = async (event: ParsedAgendaEvent) => {
+    if (!user) return;
+    
+    setIsSavingEvent(true);
+    
+    try {
+      const result = await saveUnifiedRoutine(event, user.userId);
+      
+      if (result.success) {
+        const successMsg = formatSuccessMessage(event);
+        
+        setConfirmationMessage(successMsg.replace(/\n/g, ' '));
+        setShowConfirmation(true);
+        
+        if (voiceEnabled) {
+          isaSpeak(`${event.tipo === 'rotina' ? 'Rotina' : 'Lembrete'} ${event.titulo} salvo com sucesso.`);
+        }
+        
+        toast.success('Salvo com sucesso!');
+        
+        // Refresh notifications
+        await routineNotificationService.scheduleRoutineAlerts(user.userId);
+      } else {
+        toast.error(result.error || 'Erro ao salvar');
+        if (voiceEnabled) {
+          isaSpeak('Não consegui salvar. Tente novamente.');
+        }
+      }
+    } catch (err) {
+      console.error('Error saving event:', err);
+      toast.error('Erro ao salvar');
+    } finally {
+      setIsSavingEvent(false);
+      setShowConfirmPopout(false);
+      setParsedEvent(null);
+    }
+  };
+
+  // Handle popout cancel
+  const handlePopoutCancel = () => {
+    setShowConfirmPopout(false);
+    setParsedEvent(null);
   };
 
   // Handle consulta (query) with time-of-day filter
@@ -707,12 +763,21 @@ export default function AssistenteVoz() {
         onClose={() => setShowConfirmation(false)}
       />
 
-      {/* Agenda Form Modal */}
+      {/* Agenda Form Modal (legacy - kept for compatibility) */}
       <AgendaFormModal
         isOpen={showAgendaModal}
         onClose={() => setShowAgendaModal(false)}
         onSubmit={handleAgendaFormSubmit}
         initialTitle={extractedTitle}
+      />
+
+      {/* UNIFIED Confirmation Popout - pre-filled with parsed data */}
+      <ConfirmAgendaPopout
+        isOpen={showConfirmPopout}
+        parsedEvent={parsedEvent}
+        onConfirm={handlePopoutConfirm}
+        onCancel={handlePopoutCancel}
+        isLoading={isSavingEvent}
       />
     </div>
   );
