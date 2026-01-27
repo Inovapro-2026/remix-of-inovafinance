@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, User, Wallet, Mail, Phone, CreditCard, Calendar, UserPlus, CheckCircle, Sparkles, Fingerprint, Briefcase, DollarSign, CalendarDays, Download } from 'lucide-react';
+import { Shield, User, Wallet, Mail, Phone, CreditCard, Calendar, UserPlus, CheckCircle, Sparkles, Fingerprint, Briefcase, DollarSign, CalendarDays, Download, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { NumericKeypad } from '@/components/NumericKeypad';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -128,9 +128,9 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { login, user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, login, loginWithEmail } = useAuth();
 
-  // ✅ Pre-fill matricula from URL query parameter (from cadastro-finalizado redirect)
+  // Pre-fill matricula from URL query parameter
   useEffect(() => {
     const matriculaParam = searchParams.get('matricula');
     if (matriculaParam && matriculaParam.length === 6 && /^\d{6}$/.test(matriculaParam)) {
@@ -138,7 +138,7 @@ export default function Login() {
     }
   }, [searchParams]);
 
-  // Play login audio only once per session and only on /login route when NOT authenticated
+  // Play login audio only once per session
   const loginAudioPlayedRef = useRef(false);
   const matriculaInputRef = useRef<HTMLInputElement | null>(null);
   
